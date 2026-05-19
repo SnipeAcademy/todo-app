@@ -1,0 +1,20 @@
+{
+  "task_id": "task0",
+  "title": "Generate CONVENTIONS.md",
+  "project_type": "browser_app",
+  "verify_command": "bash tasks/task0/task0-verify.sh",
+  "setup_command": "echo 'Task 0 — no pre-setup required'",
+  "dev_command": "echo 'No dev server needed for task 0'",
+  "required_env_vars": [],
+  "max_iterations": 3,
+  "allowed_paths": [
+    "CONVENTIONS.md"
+  ],
+  "protected_paths": [
+    "tasks/task0/task0.md",
+    "tasks/task0/task0-verify.sh",
+    "tasks/task0/task0.manifest.json"
+  ],
+  "depends_on": [],
+  "artifact_dir": "tasks/task0/artifacts"
+}

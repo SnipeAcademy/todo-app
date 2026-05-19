@@ -1,0 +1,26 @@
+{
+  "task_id": "task4",
+  "title": "Priority System & Day-based Sorting",
+  "project_type": "browser_app",
+  "verify_command": "npx playwright test tasks/task4/task4-verify.spec.ts --reporter=list",
+  "setup_command": "npm install && npx playwright install --with-deps chromium --quiet 2>/dev/null || true",
+  "dev_command": "npm run dev",
+  "required_env_vars": [],
+  "max_iterations": 3,
+  "allowed_paths": [
+    "src/utils/priority.ts",
+    "src/utils/index.ts",
+    "src/components/PriorityBadge.tsx",
+    "src/components/TodoCard.tsx",
+    "src/components/index.ts",
+    "src/pages/DashboardPage.tsx"
+  ],
+  "protected_paths": [
+    "tasks/task4/task4.md",
+    "tasks/task4/task4-verify.spec.ts",
+    "tasks/task4/task4.manifest.json",
+    "CONVENTIONS.md"
+  ],
+  "depends_on": ["task3"],
+  "artifact_dir": "tasks/task4/artifacts"
+}

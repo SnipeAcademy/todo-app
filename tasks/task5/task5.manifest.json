@@ -1,0 +1,26 @@
+{
+  "task_id": "task5",
+  "title": "Calendar View",
+  "project_type": "browser_app",
+  "verify_command": "npx playwright test tasks/task5/task5-verify.spec.ts --reporter=list",
+  "setup_command": "npm install && npx playwright install --with-deps chromium --quiet 2>/dev/null || true",
+  "dev_command": "npm run dev",
+  "required_env_vars": [],
+  "max_iterations": 3,
+  "allowed_paths": [
+    "src/utils/calendar.ts",
+    "src/utils/index.ts",
+    "src/components/CalendarGrid.tsx",
+    "src/components/DayPanel.tsx",
+    "src/components/index.ts",
+    "src/pages/CalendarPage.tsx"
+  ],
+  "protected_paths": [
+    "tasks/task5/task5.md",
+    "tasks/task5/task5-verify.spec.ts",
+    "tasks/task5/task5.manifest.json",
+    "CONVENTIONS.md"
+  ],
+  "depends_on": ["task4"],
+  "artifact_dir": "tasks/task5/artifacts"
+}

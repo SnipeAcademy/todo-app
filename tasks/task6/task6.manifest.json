@@ -1,0 +1,28 @@
+{
+  "task_id": "task6",
+  "title": "Completed Tasks Page",
+  "project_type": "browser_app",
+  "verify_command": "npx playwright test tasks/task6/task6-verify.spec.ts --reporter=list",
+  "setup_command": "npm install && npx playwright install --with-deps chromium --quiet 2>/dev/null || true",
+  "dev_command": "npm run dev",
+  "required_env_vars": [],
+  "max_iterations": 3,
+  "allowed_paths": [
+    "src/components/CompletedTodoCard.tsx",
+    "src/components/index.ts",
+    "src/pages/CompletedPage.tsx",
+    "src/pages/DashboardPage.tsx",
+    "src/components/CalendarGrid.tsx",
+    "src/components/DayPanel.tsx",
+    "src/pages/CalendarPage.tsx",
+    "src/components/Layout.tsx"
+  ],
+  "protected_paths": [
+    "tasks/task6/task6.md",
+    "tasks/task6/task6-verify.spec.ts",
+    "tasks/task6/task6.manifest.json",
+    "CONVENTIONS.md"
+  ],
+  "depends_on": ["task5"],
+  "artifact_dir": "tasks/task6/artifacts"
+}

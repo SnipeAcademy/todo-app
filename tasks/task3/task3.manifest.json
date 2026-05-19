@@ -1,0 +1,27 @@
+{
+  "task_id": "task3",
+  "title": "Core Todo CRUD UI",
+  "project_type": "browser_app",
+  "verify_command": "npx playwright test tasks/task3/task3-verify.spec.ts --reporter=list",
+  "setup_command": "npm install && npx playwright install --with-deps chromium --quiet 2>/dev/null || true",
+  "dev_command": "npm run dev",
+  "required_env_vars": [],
+  "max_iterations": 3,
+  "allowed_paths": [
+    "src/components/Modal.tsx",
+    "src/components/TodoForm.tsx",
+    "src/components/TodoCard.tsx",
+    "src/components/TodoList.tsx",
+    "src/components/index.ts",
+    "src/pages/DashboardPage.tsx",
+    "src/pages/index.ts"
+  ],
+  "protected_paths": [
+    "tasks/task3/task3.md",
+    "tasks/task3/task3-verify.spec.ts",
+    "tasks/task3/task3.manifest.json",
+    "CONVENTIONS.md"
+  ],
+  "depends_on": ["task2"],
+  "artifact_dir": "tasks/task3/artifacts"
+}

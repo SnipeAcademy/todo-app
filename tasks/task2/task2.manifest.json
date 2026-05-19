@@ -1,0 +1,29 @@
+{
+  "task_id": "task2",
+  "title": "Data Models & localStorage Service",
+  "project_type": "browser_app",
+  "verify_command": "npx playwright test tasks/task2/task2-verify.spec.ts --reporter=list",
+  "setup_command": "npm install && npx playwright install --with-deps chromium --quiet 2>/dev/null || true",
+  "dev_command": "npm run dev",
+  "required_env_vars": [],
+  "max_iterations": 3,
+  "allowed_paths": [
+    "src/types/index.ts",
+    "src/services/todoStorage.ts",
+    "src/services/index.ts",
+    "src/context/todoReducer.ts",
+    "src/context/TodoContext.tsx",
+    "src/context/index.ts",
+    "src/utils/generateId.ts",
+    "src/utils/index.ts",
+    "src/main.tsx"
+  ],
+  "protected_paths": [
+    "tasks/task2/task2.md",
+    "tasks/task2/task2-verify.spec.ts",
+    "tasks/task2/task2.manifest.json",
+    "CONVENTIONS.md"
+  ],
+  "depends_on": ["task1"],
+  "artifact_dir": "tasks/task2/artifacts"
+}
