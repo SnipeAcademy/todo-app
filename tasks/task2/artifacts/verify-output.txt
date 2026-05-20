@@ -1,0 +1,33 @@
+
+Running 10 tests using 1 worker
+
+  ✓   1 [chromium] › tasks/task2/task2-verify.spec.ts:39:3 › Task 2: Data Layer › load() returns empty array when key is absent (376ms)
+  ✓   2 [chromium] › tasks/task2/task2-verify.spec.ts:48:3 › Task 2: Data Layer › todos persist after page reload (359ms)
+  ✓   3 [chromium] › tasks/task2/task2-verify.spec.ts:66:3 › Task 2: Data Layer › addTodo adds a todo with correct fields (246ms)
+  ✓   4 [chromium] › tasks/task2/task2-verify.spec.ts:91:3 › Task 2: Data Layer › addTodo generates unique IDs for multiple todos (252ms)
+  ✓   5 [chromium] › tasks/task2/task2-verify.spec.ts:102:3 › Task 2: Data Layer › deleteTodo removes the todo by id (243ms)
+  ✓   6 [chromium] › tasks/task2/task2-verify.spec.ts:113:3 › Task 2: Data Layer › deleteTodo with unknown id does not crash (248ms)
+  ✓   7 [chromium] › tasks/task2/task2-verify.spec.ts:121:3 › Task 2: Data Layer › updateTodo replaces matching todo and updates updatedAt (251ms)
+  ✓   8 [chromium] › tasks/task2/task2-verify.spec.ts:139:3 › Task 2: Data Layer › toggleComplete sets completed=true and sets completedAt (257ms)
+  ✓   9 [chromium] › tasks/task2/task2-verify.spec.ts:150:3 › Task 2: Data Layer › toggleComplete a second time sets completed=false and clears completedAt (237ms)
+  ✘  10 [chromium] › tasks/task2/task2-verify.spec.ts:164:3 › Task 2: Data Layer › TypeScript compiles without errors (255ms)
+
+
+  1) [chromium] › tasks/task2/task2-verify.spec.ts:164:3 › Task 2: Data Layer › TypeScript compiles without errors 
+
+    ReferenceError: require is not defined
+
+      163 |
+      164 |   test('TypeScript compiles without errors', async () => {
+    > 165 |     const { execSync } = require('child_process');
+          |                          ^
+      166 |     const result = execSync('npx tsc --noEmit', { encoding: 'utf8', stdio: 'pipe' });
+      167 |     // If tsc exits non-zero it throws; reaching here means exit 0
+      168 |     expect(result).toBeDefined();
+        at /root/development/todo-app/tasks/task2/task2-verify.spec.ts:165:26
+
+    Error Context: test-results/task2-task2-verify-Task-2--9a005-ipt-compiles-without-errors-chromium/error-context.md
+
+  1 failed
+    [chromium] › tasks/task2/task2-verify.spec.ts:164:3 › Task 2: Data Layer › TypeScript compiles without errors 
+  9 passed (3.4s)
