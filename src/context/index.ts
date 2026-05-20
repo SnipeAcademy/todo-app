@@ -1,1 +1,1 @@
-// Context barrel — populated by later tasks
+export { TodoProvider, useTodos } from './TodoContext';

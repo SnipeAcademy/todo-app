@@ -1,1 +1,1 @@
-// Utils barrel — populated by later tasks
+export { generateId } from './generateId';

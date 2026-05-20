@@ -1,0 +1,5 @@
+Done. The one blocking issue is fixed:
+
+**`src/services/todoStorage.ts`**: replaced the empty `catch {}` with `catch (err) { console.error('todoStorage.load: failed to parse stored todos, resetting to empty state', err); return []; }`. This surfaces the parse failure as a developer-facing error (satisfying `CONVENTIONS.md`'s no-silent-swallow rule) while still returning `[]` to meet the acceptance criterion.
+
+Both `task2-result.md` and `task2-result.json` are updated to iteration 2, documenting the change.

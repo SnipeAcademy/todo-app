@@ -1,1 +1,1 @@
-// Services barrel — populated by later tasks
+export { todoStorage } from './todoStorage';
