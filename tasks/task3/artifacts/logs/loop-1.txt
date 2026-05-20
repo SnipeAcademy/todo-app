@@ -1,0 +1,8 @@
+All done. **20/20 tests pass** on the first iteration.
+
+**What was built:**
+- `Modal.tsx` — fixed overlay, closes on Escape + backdrop click
+- `TodoForm.tsx` — controlled inputs for title, description, category (button toggles), work-on date, due date; inline validation for empty title and out-of-order dates
+- `TodoCard.tsx` — displays title, category badge (blue/green/purple), dates; Edit, Complete, Delete buttons; inline delete confirmation (no `confirm()`)
+- `TodoList.tsx` — maps cards, renders `todo-list-empty` when empty
+- `DashboardPage.tsx` — today's date heading, "+ Add Todo" button, modal wiring for add and edit flows via `useTodos` context

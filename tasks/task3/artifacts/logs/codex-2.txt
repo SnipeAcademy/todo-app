@@ -1,0 +1,1347 @@
+Reading additional input from stdin...
+OpenAI Codex v0.130.0
+--------
+workdir: /root/development/todo-app
+model: gpt-5.5
+provider: openai
+approval: never
+sandbox: read-only
+reasoning effort: none
+reasoning summaries: none
+session id: 019e45b3-be05-7931-bb5a-5cf9a17b46fd
+--------
+user
+You are Codex reviewing a task implementation. Read the task spec (task3.md), what was built (task3-result.md), and the verify runner output above. Output tasks/task3/task3-review-feedback.md (human-readable notes) and tasks/task3/task3-review-feedback.json (machine-readable, strict schema). The json must contain: task_id, iteration, passed_review (bool), verify_exit_code (int), furthest_iteration (int), blocking_issues (array), non_blocking_notes (array), next_action (pass|retry|terminate).
+
+<stdin>
+# CONVENTIONS.md
+
+This file is the single source of truth for naming, structure, tooling, and behaviour rules across the entire project. It is passed as context to every Claude Code and Codex invocation.
+
+---
+
+## Naming
+
+- **Components**: PascalCase, one component per file.
+- **Files**: `kebab-case` for non-component files, `PascalCase` for component files.
+- **Test IDs**: `data-testid` attribute on every interactive and key display element, formatted as `kebab-case`.
+- **Context files**: Named `{Domain}Context.tsx`.
+- **Types**: Defined in `src/types/index.ts`.
+
+## Folder structure
+
+```
+todo-app/
+├── src/
+│   ├── components/        # Reusable UI components (PascalCase files)
+│   ├── context/           # React context providers ({Domain}Context.tsx)
+│   ├── hooks/             # Custom React hooks (useFoo.ts)
+│   ├── types/             # TypeScript type definitions (index.ts)
+│   ├── utils/             # Pure utility functions (kebab-case)
+│   ├── App.tsx            # Root application component
+│   └── main.tsx           # Entry point
+├── tests/                 # Playwright end-to-end tests
+├── tasks/                 # Task definitions and verification scripts
+├── public/                # Static assets
+├── package.json
+├── vite.config.ts
+├── tsconfig.json
+├── tailwind.config.js
+└── CONVENTIONS.md
+```
+
+## Error handling
+
+- Never swallow errors silently — always surface to the user or re-throw.
+- Use `try/catch` blocks around async operations with meaningful error messages.
+- Display user-facing errors in the UI; log developer-facing errors to console.
+- Do not use empty `catch {}` blocks.
+
+## Styling
+
+- **Tailwind CSS v3** is the only styling system.
+- No inline styles (`style={}` prop is forbidden).
+- No CSS Modules, no styled-components, no emotion, no other CSS-in-JS libraries.
+- Use Tailwind utility classes exclusively. Prefer composition over custom CSS.
+- When Tailwind utility classes are insufficient, use `@apply` in a CSS file — never fall back to inline styles.
+
+## Verification tooling
+
+- **Playwright** is the testing framework for end-to-end verification.
+- Tests use the `browser_app` protocol for browser automation.
+- Every interactive element and key display element must have a `data-testid` attribute.
+- Playwright tests must use explicit waits on element state (e.g., `locator.isEnabled()`, `locator.isVisible()`), never `waitForTimeout`.
+
+## Environment contract
+
+```json
+{
+  "setup_command": "npm install",
+  "dev_command": "npm run dev",
+  "verify_command": "npx playwright test",
+  "required_env_vars": []
+}
+```
+
+### Stack
+
+| Layer        | Technology                  |
+|-------------|-----------------------------|
+| Build       | Vite                        |
+| Framework   | React 18                    |
+| Language    | TypeScript (strict mode)    |
+| Routing     | react-router-dom v6         |
+| Styling     | Tailwind CSS v3             |
+| Dates       | date-fns                    |
+| State       | React context + useReducer   |
+| Storage     | localStorage only (no backend) |
+| Testing     | Playwright                   |
+
+## What Claude Code must never do
+
+1. **Install packages** not already declared in `package.json` unless the task's scope explicitly requires it.
+2. **Touch files** outside the task's declared `allowed_paths`.
+3. **Use inline styles** — all styling must go through Tailwind utility classes.
+4. **Mix styling systems** — no CSS Modules, no styled-components, no other CSS-in-JS.
+5. **Use the `any` type** in TypeScript — always define proper types or use `unknown`.
+6. **Swallow errors silently** — always surface to the user or re-throw.
+7. **Use `waitForTimeout`** in Playwright tests — use explicit waits on element state instead.
+# Task 3: Core Todo CRUD UI
+
+## Objective
+Build the UI for creating, editing, and deleting todos. The Dashboard page must display active todos and allow the user to open a form to add or edit them.
+
+## Scope
+- `<Modal>` backdrop + container component
+- `<TodoForm>` component (add and edit modes, controlled inputs, inline validation)
+- `<TodoCard>` component (displays one todo with Edit, Delete, Mark Complete actions)
+- `<TodoList>` component (renders a list of TodoCards, empty state included)
+- Update `<DashboardPage>` to: show today's date heading, render active todos via TodoList, provide "+ Add Todo" button, wire up edit flow
+
+## Out of scope
+- Priority sorting and priority badges (task 4)
+- Calendar (task 5)
+- Completed page and filtering (task 6)
+- Do not implement the "disappear on complete" behaviour yet — the card may stay visible after marking complete; that filtering is task 6
+
+## Acceptance criteria
+- [ ] Clicking `data-testid="add-todo-btn"` opens a modal containing `data-testid="todo-form"`
+- [ ] Submitting the form with an empty title shows `data-testid="todo-title-error"` and does not close the modal
+- [ ] Submitting the form with a due date earlier than the work-on date shows `data-testid="todo-due-date-error"` and does not close the modal
+- [ ] Submitting a valid form closes the modal and shows a card with `data-testid="todo-card"` in the list
+- [ ] The card shows the correct title, category badge (`data-testid="todo-card-category-badge"`), work-on date, and due date
+- [ ] The `office` category badge has Tailwind class containing `blue`
+- [ ] The `personal` category badge has Tailwind class containing `green`
+- [ ] The `family` category badge has Tailwind class containing `purple`
+- [ ] Clicking `data-testid="todo-card-edit-btn"` opens the modal pre-populated with existing values
+- [ ] Saving an edit updates the card title in the list
+- [ ] Clicking `data-testid="todo-card-delete-btn"` shows a confirmation element (`data-testid="todo-card-delete-confirm"`)
+- [ ] Clicking `data-testid="todo-card-delete-cancel"` dismisses the confirmation without deleting
+- [ ] Clicking `data-testid="todo-card-delete-confirm"` removes the card from the list
+- [ ] Pressing `Escape` while the modal is open closes it without saving
+- [ ] When there are no active todos, `data-testid="todo-list-empty"` is visible
+- [ ] Data persists after page reload (todos still in list)
+
+## Dependencies
+- task2 must be complete (context, types, localStorage service)
+
+## File and folder targets
+- Create: `src/components/Modal.tsx`
+- Create: `src/components/TodoForm.tsx`
+- Create: `src/components/TodoCard.tsx`
+- Create: `src/components/TodoList.tsx`
+- Modify: `src/components/index.ts`
+- Modify: `src/pages/DashboardPage.tsx`
+- Do not touch: `src/context/`, `src/services/`, `src/types/`, `src/utils/`
+
+## Design constraints
+- Follow `CONVENTIONS.md` for naming and styling
+- All interactive and displayed elements must have `data-testid` attributes — see accepted list below
+- Use only Tailwind utility classes — no inline styles
+- Form must use controlled inputs (React `useState` for each field)
+- Do not use browser `confirm()` — show an inline confirmation in the card
+- Modal must trap focus and close on Escape keydown and backdrop click
+
+### Required data-testid attributes
+| Element | data-testid |
+|---|---|
+| "+ Add Todo" button | `add-todo-btn` |
+| Form element | `todo-form` |
+| Title input | `todo-title-input` |
+| Description textarea | `todo-description-input` |
+| Category option — office | `todo-category-office` |
+| Category option — personal | `todo-category-personal` |
+| Category option — family | `todo-category-family` |
+| Work-on date input | `todo-work-on-date` |
+| Due date input | `todo-due-date` |
+| Form submit button | `todo-form-submit` |
+| Form cancel/close button | `todo-form-cancel` |
+| Title validation error | `todo-title-error` |
+| Due date validation error | `todo-due-date-error` |
+| Todo list container | `todo-list` |
+| Individual todo card | `todo-card` |
+| Card title text | `todo-card-title` |
+| Category badge | `todo-card-category-badge` |
+| Edit button | `todo-card-edit-btn` |
+| Delete button | `todo-card-delete-btn` |
+| Delete confirmation button | `todo-card-delete-confirm` |
+| Delete cancel button | `todo-card-delete-cancel` |
+| Mark complete button | `todo-card-complete-btn` |
+| Empty state element | `todo-list-empty` |
+
+## Context
+This task adds the first visible UI to the app. The form is the primary data-entry point for the founder. Inline validation prevents bad data entering the store. All UI interactions must work via `data-testid` selectors — CSS classes may change in future tasks and must not be relied on in tests.
+# Task 3 Result: Core Todo CRUD UI
+
+## Status
+Implemented and verified (iteration 2). All 20 Playwright tests pass.
+
+## Iteration 2 fix
+Added keyboard focus trapping to `Modal.tsx` (blocking issue from review). The modal now:
+- Queries all focusable elements inside the container on `Tab`/`Shift+Tab`
+- Cycles focus within the modal boundary, preventing keyboard focus from escaping
+- Auto-focuses the first focusable element on open
+- Restores focus to the previously focused element on close
+
+## Files created
+- `src/components/Modal.tsx` — backdrop + container, Escape/backdrop close, keyboard focus trap
+- `src/components/TodoForm.tsx` — controlled form for add/edit with inline validation
+- `src/components/TodoCard.tsx` — card with title, category badge, dates, and Edit/Delete/Complete actions
+- `src/components/TodoList.tsx` — list of TodoCards with empty state
+
+## Files modified
+- `src/components/index.ts` — exports Modal, TodoCard, TodoForm, TodoList
+- `src/pages/DashboardPage.tsx` — today's date heading, "+ Add Todo" button, modal wiring, TodoList
+
+## Acceptance criteria
+All criteria met:
+- `add-todo-btn` opens modal containing `todo-form`
+- Empty title submit shows `todo-title-error`, keeps modal open
+- Due date before work-on date shows `todo-due-date-error`, keeps modal open
+- Valid submit closes modal and shows `todo-card` in list
+- Card shows correct title, category badge, work-on date, due date
+- `office` badge has class containing `blue`
+- `personal` badge has class containing `green`
+- `family` badge has class containing `purple`
+- Edit button opens pre-populated form
+- Saving edit updates card title
+- Delete button shows inline `todo-card-delete-confirm` and `todo-card-delete-cancel`
+- Cancel dismisses confirmation without deleting
+- Confirm deletes card from list
+- Escape closes modal without saving
+- Empty state `todo-list-empty` visible when no todos
+- Data persists after page reload
+
+## Verify output
+```
+20 passed (10.4s)
+```
+
+Running 20 tests using 1 worker
+
+  ✓   1 [chromium] › tasks/task3/task3-verify.spec.ts:40:3 › Task 3: Core CRUD UI › empty state is visible when no todos exist (373ms)
+  ✓   2 [chromium] › tasks/task3/task3-verify.spec.ts:44:3 › Task 3: Core CRUD UI › add-todo-btn is visible on the dashboard (303ms)
+  ✓   3 [chromium] › tasks/task3/task3-verify.spec.ts:50:3 › Task 3: Core CRUD UI › clicking add-todo-btn opens the todo form modal (328ms)
+  ✓   4 [chromium] › tasks/task3/task3-verify.spec.ts:55:3 › Task 3: Core CRUD UI › pressing Escape closes the modal without saving (321ms)
+  ✓   5 [chromium] › tasks/task3/task3-verify.spec.ts:63:3 › Task 3: Core CRUD UI › clicking the form cancel button closes the modal (365ms)
+  ✓   6 [chromium] › tasks/task3/task3-verify.spec.ts:71:3 › Task 3: Core CRUD UI › submitting with empty title shows title error and keeps modal open (341ms)
+  ✓   7 [chromium] › tasks/task3/task3-verify.spec.ts:78:3 › Task 3: Core CRUD UI › submitting with due date before work-on date shows due date error (435ms)
+  ✓   8 [chromium] › tasks/task3/task3-verify.spec.ts:91:3 › Task 3: Core CRUD UI › valid form submission closes modal and shows the card (390ms)
+  ✓   9 [chromium] › tasks/task3/task3-verify.spec.ts:97:3 › Task 3: Core CRUD UI › card shows correct title (412ms)
+  ✓  10 [chromium] › tasks/task3/task3-verify.spec.ts:102:3 › Task 3: Core CRUD UI › office category badge contains "blue" class (456ms)
+  ✓  11 [chromium] › tasks/task3/task3-verify.spec.ts:109:3 › Task 3: Core CRUD UI › personal category badge contains "green" class (425ms)
+  ✓  12 [chromium] › tasks/task3/task3-verify.spec.ts:116:3 › Task 3: Core CRUD UI › family category badge contains "purple" class (422ms)
+  ✓  13 [chromium] › tasks/task3/task3-verify.spec.ts:123:3 › Task 3: Core CRUD UI › empty state disappears after adding a todo (438ms)
+  ✓  14 [chromium] › tasks/task3/task3-verify.spec.ts:130:3 › Task 3: Core CRUD UI › todos persist after page reload (476ms)
+  ✓  15 [chromium] › tasks/task3/task3-verify.spec.ts:140:3 › Task 3: Core CRUD UI › clicking edit opens the form pre-populated (438ms)
+  ✓  16 [chromium] › tasks/task3/task3-verify.spec.ts:147:3 › Task 3: Core CRUD UI › saving an edit updates the card title (514ms)
+  ✓  17 [chromium] › tasks/task3/task3-verify.spec.ts:157:3 › Task 3: Core CRUD UI › clicking delete shows inline confirmation (431ms)
+  ✓  18 [chromium] › tasks/task3/task3-verify.spec.ts:163:3 › Task 3: Core CRUD UI › clicking cancel on delete dismisses confirmation without deleting (498ms)
+  ✓  19 [chromium] › tasks/task3/task3-verify.spec.ts:171:3 › Task 3: Core CRUD UI › confirming delete removes the card from the list (484ms)
+  ✓  20 [chromium] › tasks/task3/task3-verify.spec.ts:181:3 › Task 3: Core CRUD UI › mark complete button is visible on a card (455ms)
+
+  20 passed (9.2s)
+</stdin>
+warning: Codex could not find bubblewrap on PATH. Install bubblewrap with your OS package manager. See the sandbox prerequisites: https://developers.openai.com/codex/concepts/sandboxing#prerequisites. Codex will use the bundled bubblewrap in the meantime.
+codex
+I’ll review the task files and implementation against the spec, then write the two required feedback artifacts. Since this is a review request, I’ll focus on blocking correctness issues first and keep the output files strict.
+exec
+/bin/bash -lc 'git status --short' in /root/development/todo-app
+ succeeded in 0ms:
+ M src/components/index.ts
+ M src/pages/DashboardPage.tsx
+?? src/components/Modal.tsx
+?? src/components/TodoCard.tsx
+?? src/components/TodoForm.tsx
+?? src/components/TodoList.tsx
+?? tasks/task3/artifacts/logs/
+?? tasks/task3/artifacts/verify-output.txt
+?? tasks/task3/task3-assumptions.md
+?? tasks/task3/task3-result.json
+?? tasks/task3/task3-result.md
+?? tasks/task3/task3-review-feedback.json
+?? tasks/task3/task3-review-feedback.md
+
+exec
+/bin/bash -lc 'pwd && rg --files' in /root/development/todo-app
+ succeeded in 0ms:
+/root/development/todo-app
+playwright.config.ts
+tsconfig.node.json
+postcss.config.js
+package.json
+tasks/task2/task2-result.md
+tasks/task2/task2.md
+tasks/task2/task2-result.json
+tasks/task2/artifacts/verify-output.txt
+tasks/task2/artifacts/logs/codex-1.txt
+tasks/task2/artifacts/logs/loop-2.txt
+tasks/task2/artifacts/logs/loop-1.txt
+tasks/task2/task2-assumptions.md
+tasks/task2/task2-verify.spec.ts
+tasks/task2/task2-review-feedback.md
+tasks/task2/task2.manifest.json
+tasks/task2/task2-review-feedback.json
+tasks/task6/task6.manifest.json
+tasks/task6/task6-verify.spec.ts
+tasks/task6/task6.md
+tasks/task4/task4-verify.spec.ts
+tasks/task4/task4.md
+tasks/task4/task4.manifest.json
+tasks/task5/task5-verify.spec.ts
+tasks/task5/task5.md
+tasks/task5/task5.manifest.json
+tasks/task1/task1-assumptions.md
+tasks/task1/task1-result.json
+tasks/task1/artifacts/verify-output.txt
+tasks/task1/artifacts/logs/codex-1.txt
+tasks/task1/artifacts/logs/loop-1.txt
+tasks/task1/task1-verify.spec.ts
+tasks/task1/task1.md
+tasks/task1/task1-result.md
+tasks/task1/task1.manifest.json
+tasks/task1/task1-review-feedback.json
+tasks/task3/task3-assumptions.md
+tasks/task3/task3-review-feedback.json
+tasks/task3/task3.manifest.json
+tasks/task3/task3-verify.spec.ts
+tasks/task3/task3-result.md
+tasks/task3/artifacts/verify-output.txt
+tasks/task3/artifacts/logs/codex-1.txt
+tasks/task3/artifacts/logs/codex-2.txt
+tasks/task3/artifacts/logs/loop-2.txt
+tasks/task3/artifacts/logs/loop-1.txt
+tasks/task3/task3-review-feedback.md
+tasks/task3/task3-result.json
+tasks/task3/task3.md
+tests/task1-verify.spec.ts
+tsconfig.app.json
+vite.config.ts
+src/pages/index.ts
+src/pages/DashboardPage.tsx
+src/pages/CompletedPage.tsx
+src/pages/CalendarPage.tsx
+src/types/index.ts
+src/utils/index.ts
+src/utils/generateId.ts
+src/main.tsx
+src/components/Layout.tsx
+src/components/index.ts
+src/components/TodoList.tsx
+src/components/Modal.tsx
+src/components/TodoCard.tsx
+src/components/TodoForm.tsx
+src/services/todoStorage.ts
+src/services/index.ts
+src/hooks/index.ts
+src/App.tsx
+src/vite-env.d.ts
+src/index.css
+src/context/index.ts
+src/context/todoReducer.ts
+src/context/TodoContext.tsx
+index.html
+package-lock.json
+tsconfig.json
+tailwind.config.js
+HERMES.md
+CONVENTIONS.md
+
+codex
+The repository is in a read-only sandbox, so I can inspect but may not be able to write the feedback files. I’m reading the implementation now; if writes are blocked, I’ll return the exact file contents for you to place in the two requested paths.
+exec
+/bin/bash -lc "sed -n '1,240p' tasks/task3/task3.md" in /root/development/todo-app
+ succeeded in 0ms:
+# Task 3: Core Todo CRUD UI
+
+## Objective
+Build the UI for creating, editing, and deleting todos. The Dashboard page must display active todos and allow the user to open a form to add or edit them.
+
+## Scope
+- `<Modal>` backdrop + container component
+- `<TodoForm>` component (add and edit modes, controlled inputs, inline validation)
+- `<TodoCard>` component (displays one todo with Edit, Delete, Mark Complete actions)
+- `<TodoList>` component (renders a list of TodoCards, empty state included)
+- Update `<DashboardPage>` to: show today's date heading, render active todos via TodoList, provide "+ Add Todo" button, wire up edit flow
+
+## Out of scope
+- Priority sorting and priority badges (task 4)
+- Calendar (task 5)
+- Completed page and filtering (task 6)
+- Do not implement the "disappear on complete" behaviour yet — the card may stay visible after marking complete; that filtering is task 6
+
+## Acceptance criteria
+- [ ] Clicking `data-testid="add-todo-btn"` opens a modal containing `data-testid="todo-form"`
+- [ ] Submitting the form with an empty title shows `data-testid="todo-title-error"` and does not close the modal
+- [ ] Submitting the form with a due date earlier than the work-on date shows `data-testid="todo-due-date-error"` and does not close the modal
+- [ ] Submitting a valid form closes the modal and shows a card with `data-testid="todo-card"` in the list
+- [ ] The card shows the correct title, category badge (`data-testid="todo-card-category-badge"`), work-on date, and due date
+- [ ] The `office` category badge has Tailwind class containing `blue`
+- [ ] The `personal` category badge has Tailwind class containing `green`
+- [ ] The `family` category badge has Tailwind class containing `purple`
+- [ ] Clicking `data-testid="todo-card-edit-btn"` opens the modal pre-populated with existing values
+- [ ] Saving an edit updates the card title in the list
+- [ ] Clicking `data-testid="todo-card-delete-btn"` shows a confirmation element (`data-testid="todo-card-delete-confirm"`)
+- [ ] Clicking `data-testid="todo-card-delete-cancel"` dismisses the confirmation without deleting
+- [ ] Clicking `data-testid="todo-card-delete-confirm"` removes the card from the list
+- [ ] Pressing `Escape` while the modal is open closes it without saving
+- [ ] When there are no active todos, `data-testid="todo-list-empty"` is visible
+- [ ] Data persists after page reload (todos still in list)
+
+## Dependencies
+- task2 must be complete (context, types, localStorage service)
+
+## File and folder targets
+- Create: `src/components/Modal.tsx`
+- Create: `src/components/TodoForm.tsx`
+- Create: `src/components/TodoCard.tsx`
+- Create: `src/components/TodoList.tsx`
+- Modify: `src/components/index.ts`
+- Modify: `src/pages/DashboardPage.tsx`
+- Do not touch: `src/context/`, `src/services/`, `src/types/`, `src/utils/`
+
+## Design constraints
+- Follow `CONVENTIONS.md` for naming and styling
+- All interactive and displayed elements must have `data-testid` attributes — see accepted list below
+- Use only Tailwind utility classes — no inline styles
+- Form must use controlled inputs (React `useState` for each field)
+- Do not use browser `confirm()` — show an inline confirmation in the card
+- Modal must trap focus and close on Escape keydown and backdrop click
+
+### Required data-testid attributes
+| Element | data-testid |
+|---|---|
+| "+ Add Todo" button | `add-todo-btn` |
+| Form element | `todo-form` |
+| Title input | `todo-title-input` |
+| Description textarea | `todo-description-input` |
+| Category option — office | `todo-category-office` |
+| Category option — personal | `todo-category-personal` |
+| Category option — family | `todo-category-family` |
+| Work-on date input | `todo-work-on-date` |
+| Due date input | `todo-due-date` |
+| Form submit button | `todo-form-submit` |
+| Form cancel/close button | `todo-form-cancel` |
+| Title validation error | `todo-title-error` |
+| Due date validation error | `todo-due-date-error` |
+| Todo list container | `todo-list` |
+| Individual todo card | `todo-card` |
+| Card title text | `todo-card-title` |
+| Category badge | `todo-card-category-badge` |
+| Edit button | `todo-card-edit-btn` |
+| Delete button | `todo-card-delete-btn` |
+| Delete confirmation button | `todo-card-delete-confirm` |
+| Delete cancel button | `todo-card-delete-cancel` |
+| Mark complete button | `todo-card-complete-btn` |
+| Empty state element | `todo-list-empty` |
+
+## Context
+This task adds the first visible UI to the app. The form is the primary data-entry point for the founder. Inline validation prevents bad data entering the store. All UI interactions must work via `data-testid` selectors — CSS classes may change in future tasks and must not be relied on in tests.
+
+exec
+/bin/bash -lc "sed -n '1,220p' tasks/task3/artifacts/verify-output.txt" in /root/development/todo-app
+ succeeded in 0ms:
+
+Running 20 tests using 1 worker
+
+  ✓   1 [chromium] › tasks/task3/task3-verify.spec.ts:40:3 › Task 3: Core CRUD UI › empty state is visible when no todos exist (373ms)
+  ✓   2 [chromium] › tasks/task3/task3-verify.spec.ts:44:3 › Task 3: Core CRUD UI › add-todo-btn is visible on the dashboard (303ms)
+  ✓   3 [chromium] › tasks/task3/task3-verify.spec.ts:50:3 › Task 3: Core CRUD UI › clicking add-todo-btn opens the todo form modal (328ms)
+  ✓   4 [chromium] › tasks/task3/task3-verify.spec.ts:55:3 › Task 3: Core CRUD UI › pressing Escape closes the modal without saving (321ms)
+  ✓   5 [chromium] › tasks/task3/task3-verify.spec.ts:63:3 › Task 3: Core CRUD UI › clicking the form cancel button closes the modal (365ms)
+  ✓   6 [chromium] › tasks/task3/task3-verify.spec.ts:71:3 › Task 3: Core CRUD UI › submitting with empty title shows title error and keeps modal open (341ms)
+  ✓   7 [chromium] › tasks/task3/task3-verify.spec.ts:78:3 › Task 3: Core CRUD UI › submitting with due date before work-on date shows due date error (435ms)
+  ✓   8 [chromium] › tasks/task3/task3-verify.spec.ts:91:3 › Task 3: Core CRUD UI › valid form submission closes modal and shows the card (390ms)
+  ✓   9 [chromium] › tasks/task3/task3-verify.spec.ts:97:3 › Task 3: Core CRUD UI › card shows correct title (412ms)
+  ✓  10 [chromium] › tasks/task3/task3-verify.spec.ts:102:3 › Task 3: Core CRUD UI › office category badge contains "blue" class (456ms)
+  ✓  11 [chromium] › tasks/task3/task3-verify.spec.ts:109:3 › Task 3: Core CRUD UI › personal category badge contains "green" class (425ms)
+  ✓  12 [chromium] › tasks/task3/task3-verify.spec.ts:116:3 › Task 3: Core CRUD UI › family category badge contains "purple" class (422ms)
+  ✓  13 [chromium] › tasks/task3/task3-verify.spec.ts:123:3 › Task 3: Core CRUD UI › empty state disappears after adding a todo (438ms)
+  ✓  14 [chromium] › tasks/task3/task3-verify.spec.ts:130:3 › Task 3: Core CRUD UI › todos persist after page reload (476ms)
+  ✓  15 [chromium] › tasks/task3/task3-verify.spec.ts:140:3 › Task 3: Core CRUD UI › clicking edit opens the form pre-populated (438ms)
+  ✓  16 [chromium] › tasks/task3/task3-verify.spec.ts:147:3 › Task 3: Core CRUD UI › saving an edit updates the card title (514ms)
+  ✓  17 [chromium] › tasks/task3/task3-verify.spec.ts:157:3 › Task 3: Core CRUD UI › clicking delete shows inline confirmation (431ms)
+  ✓  18 [chromium] › tasks/task3/task3-verify.spec.ts:163:3 › Task 3: Core CRUD UI › clicking cancel on delete dismisses confirmation without deleting (498ms)
+  ✓  19 [chromium] › tasks/task3/task3-verify.spec.ts:171:3 › Task 3: Core CRUD UI › confirming delete removes the card from the list (484ms)
+  ✓  20 [chromium] › tasks/task3/task3-verify.spec.ts:181:3 › Task 3: Core CRUD UI › mark complete button is visible on a card (455ms)
+
+  20 passed (9.2s)
+
+exec
+/bin/bash -lc "sed -n '1,260p' src/components/Modal.tsx" in /root/development/todo-app
+ succeeded in 0ms:
+import { useEffect, useRef } from 'react';
+import type { ReactNode } from 'react';
+
+const FOCUSABLE = [
+  'a[href]',
+  'button:not([disabled])',
+  'input:not([disabled])',
+  'select:not([disabled])',
+  'textarea:not([disabled])',
+  '[tabindex]:not([tabindex="-1"])',
+].join(',');
+
+interface ModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  children: ReactNode;
+}
+
+export default function Modal({ isOpen, onClose, children }: ModalProps) {
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const previouslyFocused = document.activeElement as HTMLElement | null;
+
+    // Focus the first focusable element in the modal
+    const focusFirst = () => {
+      const el = containerRef.current?.querySelector<HTMLElement>(FOCUSABLE);
+      el?.focus();
+    };
+    focusFirst();
+
+    function handleKeyDown(e: KeyboardEvent) {
+      if (e.key === 'Escape') {
+        onClose();
+        return;
+      }
+      if (e.key !== 'Tab' || !containerRef.current) return;
+
+      const focusable = Array.from(
+        containerRef.current.querySelectorAll<HTMLElement>(FOCUSABLE)
+      ).filter((el) => !el.closest('[hidden]'));
+
+      if (focusable.length === 0) {
+        e.preventDefault();
+        return;
+      }
+
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+
+      if (e.shiftKey) {
+        if (document.activeElement === first) {
+          e.preventDefault();
+          last.focus();
+        }
+      } else {
+        if (document.activeElement === last) {
+          e.preventDefault();
+          first.focus();
+        }
+      }
+    }
+
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('keydown', handleKeyDown);
+      previouslyFocused?.focus();
+    };
+  }, [isOpen, onClose]);
+
+  if (!isOpen) return null;
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50"
+      onClick={onClose}
+    >
+      <div
+        ref={containerRef}
+        className="relative bg-white rounded-lg shadow-xl p-6 w-full max-w-md mx-4"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {children}
+      </div>
+    </div>
+  );
+}
+
+exec
+/bin/bash -lc "sed -n '1,220p' tasks/task3/task3-result.md" in /root/development/todo-app
+ succeeded in 0ms:
+# Task 3 Result: Core Todo CRUD UI
+
+## Status
+Implemented and verified (iteration 2). All 20 Playwright tests pass.
+
+## Iteration 2 fix
+Added keyboard focus trapping to `Modal.tsx` (blocking issue from review). The modal now:
+- Queries all focusable elements inside the container on `Tab`/`Shift+Tab`
+- Cycles focus within the modal boundary, preventing keyboard focus from escaping
+- Auto-focuses the first focusable element on open
+- Restores focus to the previously focused element on close
+
+## Files created
+- `src/components/Modal.tsx` — backdrop + container, Escape/backdrop close, keyboard focus trap
+- `src/components/TodoForm.tsx` — controlled form for add/edit with inline validation
+- `src/components/TodoCard.tsx` — card with title, category badge, dates, and Edit/Delete/Complete actions
+- `src/components/TodoList.tsx` — list of TodoCards with empty state
+
+## Files modified
+- `src/components/index.ts` — exports Modal, TodoCard, TodoForm, TodoList
+- `src/pages/DashboardPage.tsx` — today's date heading, "+ Add Todo" button, modal wiring, TodoList
+
+## Acceptance criteria
+All criteria met:
+- `add-todo-btn` opens modal containing `todo-form`
+- Empty title submit shows `todo-title-error`, keeps modal open
+- Due date before work-on date shows `todo-due-date-error`, keeps modal open
+- Valid submit closes modal and shows `todo-card` in list
+- Card shows correct title, category badge, work-on date, due date
+- `office` badge has class containing `blue`
+- `personal` badge has class containing `green`
+- `family` badge has class containing `purple`
+- Edit button opens pre-populated form
+- Saving edit updates card title
+- Delete button shows inline `todo-card-delete-confirm` and `todo-card-delete-cancel`
+- Cancel dismisses confirmation without deleting
+- Confirm deletes card from list
+- Escape closes modal without saving
+- Empty state `todo-list-empty` visible when no todos
+- Data persists after page reload
+
+## Verify output
+```
+20 passed (10.4s)
+```
+
+exec
+/bin/bash -lc "sed -n '1,280p' src/components/TodoForm.tsx" in /root/development/todo-app
+ succeeded in 0ms:
+import { useState, useEffect, useRef } from 'react';
+import type { Todo, Category } from '../types';
+
+type AddTodoInput = Omit<Todo, 'id' | 'completed' | 'completedAt' | 'createdAt' | 'updatedAt'>;
+
+interface TodoFormProps {
+  initialValues?: Partial<Todo>;
+  onSubmit: (values: AddTodoInput) => void;
+  onCancel: () => void;
+}
+
+const CATEGORIES: Category[] = ['office', 'personal', 'family'];
+
+const categoryActiveClass: Record<Category, string> = {
+  office: 'bg-blue-600 text-white border-blue-600',
+  personal: 'bg-green-600 text-white border-green-600',
+  family: 'bg-purple-600 text-white border-purple-600',
+};
+
+function todayString(): string {
+  return new Date().toISOString().split('T')[0];
+}
+
+export default function TodoForm({ initialValues, onSubmit, onCancel }: TodoFormProps) {
+  const [title, setTitle] = useState(initialValues?.title ?? '');
+  const [description, setDescription] = useState(initialValues?.description ?? '');
+  const [category, setCategory] = useState<Category>(initialValues?.category ?? 'office');
+  const [workOnDate, setWorkOnDate] = useState(initialValues?.workOnDate ?? todayString());
+  const [dueDate, setDueDate] = useState(initialValues?.dueDate ?? todayString());
+  const [titleError, setTitleError] = useState('');
+  const [dueDateError, setDueDateError] = useState('');
+  const titleRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    titleRef.current?.focus();
+  }, []);
+
+  function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    let valid = true;
+
+    if (!title.trim()) {
+      setTitleError('Title is required.');
+      valid = false;
+    } else {
+      setTitleError('');
+    }
+
+    if (dueDate < workOnDate) {
+      setDueDateError('Due date cannot be before the work-on date.');
+      valid = false;
+    } else {
+      setDueDateError('');
+    }
+
+    if (!valid) return;
+
+    onSubmit({
+      title: title.trim(),
+      description: description.trim() || undefined,
+      category,
+      workOnDate,
+      dueDate,
+    });
+  }
+
+  return (
+    <form data-testid="todo-form" onSubmit={handleSubmit} className="flex flex-col gap-4">
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-1">Title</label>
+        <input
+          ref={titleRef}
+          data-testid="todo-title-input"
+          type="text"
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+          className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+        />
+        {titleError && (
+          <p data-testid="todo-title-error" className="text-red-600 text-sm mt-1">
+            {titleError}
+          </p>
+        )}
+      </div>
+
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-1">Description</label>
+        <textarea
+          data-testid="todo-description-input"
+          value={description}
+          onChange={(e) => setDescription(e.target.value)}
+          rows={3}
+          className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+        />
+      </div>
+
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-2">Category</label>
+        <div className="flex gap-2">
+          {CATEGORIES.map((cat) => (
+            <button
+              key={cat}
+              type="button"
+              data-testid={`todo-category-${cat}`}
+              onClick={() => setCategory(cat)}
+              className={`px-3 py-1 rounded-full text-sm font-medium border transition-colors ${
+                category === cat
+                  ? categoryActiveClass[cat]
+                  : 'bg-white text-gray-600 border-gray-300 hover:border-gray-400'
+              }`}
+            >
+              {cat.charAt(0).toUpperCase() + cat.slice(1)}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-1">Work-on Date</label>
+        <input
+          data-testid="todo-work-on-date"
+          type="date"
+          value={workOnDate}
+          onChange={(e) => setWorkOnDate(e.target.value)}
+          className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+        />
+      </div>
+
+      <div>
+        <label className="block text-sm font-medium text-gray-700 mb-1">Due Date</label>
+        <input
+          data-testid="todo-due-date"
+          type="date"
+          value={dueDate}
+          onChange={(e) => setDueDate(e.target.value)}
+          className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+        />
+        {dueDateError && (
+          <p data-testid="todo-due-date-error" className="text-red-600 text-sm mt-1">
+            {dueDateError}
+          </p>
+        )}
+      </div>
+
+      <div className="flex justify-end gap-2 pt-2">
+        <button
+          type="button"
+          data-testid="todo-form-cancel"
+          onClick={onCancel}
+          className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50"
+        >
+          Cancel
+        </button>
+        <button
+          type="submit"
+          data-testid="todo-form-submit"
+          className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700"
+        >
+          {initialValues?.id ? 'Save' : 'Add Todo'}
+        </button>
+      </div>
+    </form>
+  );
+}
+
+exec
+/bin/bash -lc "sed -n '1,260p' src/components/TodoCard.tsx" in /root/development/todo-app
+ succeeded in 0ms:
+import { useState } from 'react';
+import type { Todo } from '../types';
+
+interface TodoCardProps {
+  todo: Todo;
+  onEdit: (todo: Todo) => void;
+  onDelete: (id: string) => void;
+  onToggleComplete: (id: string) => void;
+}
+
+const categoryBadgeClass: Record<string, string> = {
+  office: 'bg-blue-100 text-blue-800',
+  personal: 'bg-green-100 text-green-800',
+  family: 'bg-purple-100 text-purple-800',
+};
+
+export default function TodoCard({ todo, onEdit, onDelete, onToggleComplete }: TodoCardProps) {
+  const [showConfirm, setShowConfirm] = useState(false);
+
+  return (
+    <div data-testid="todo-card" className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
+      <div className="flex items-start gap-3">
+        <div className="flex-1 min-w-0">
+          <span data-testid="todo-card-title" className="text-base font-medium text-gray-900 block">
+            {todo.title}
+          </span>
+          <span
+            data-testid="todo-card-category-badge"
+            className={`inline-block mt-1 px-2 py-0.5 rounded-full text-xs font-medium ${
+              categoryBadgeClass[todo.category] ?? 'bg-gray-100 text-gray-800'
+            }`}
+          >
+            {todo.category.charAt(0).toUpperCase() + todo.category.slice(1)}
+          </span>
+          <div className="mt-2 text-xs text-gray-500 space-y-0.5">
+            <p>Work on: {todo.workOnDate}</p>
+            <p>Due: {todo.dueDate}</p>
+          </div>
+        </div>
+        <div className="flex gap-1 shrink-0">
+          <button
+            data-testid="todo-card-complete-btn"
+            onClick={() => onToggleComplete(todo.id)}
+            className="px-2 py-1 text-xs font-medium text-green-700 bg-green-50 border border-green-200 rounded hover:bg-green-100"
+          >
+            {todo.completed ? 'Undo' : 'Complete'}
+          </button>
+          <button
+            data-testid="todo-card-edit-btn"
+            onClick={() => onEdit(todo)}
+            className="px-2 py-1 text-xs font-medium text-blue-700 bg-blue-50 border border-blue-200 rounded hover:bg-blue-100"
+          >
+            Edit
+          </button>
+          <button
+            data-testid="todo-card-delete-btn"
+            onClick={() => setShowConfirm(true)}
+            className="px-2 py-1 text-xs font-medium text-red-700 bg-red-50 border border-red-200 rounded hover:bg-red-100"
+          >
+            Delete
+          </button>
+        </div>
+      </div>
+
+      {showConfirm && (
+        <div className="mt-3 pt-3 border-t border-gray-100 flex items-center gap-2">
+          <span className="text-sm text-gray-600 flex-1">Delete this todo?</span>
+          <button
+            data-testid="todo-card-delete-cancel"
+            onClick={() => setShowConfirm(false)}
+            className="px-3 py-1 text-xs font-medium text-gray-700 bg-white border border-gray-300 rounded hover:bg-gray-50"
+          >
+            Cancel
+          </button>
+          <button
+            data-testid="todo-card-delete-confirm"
+            onClick={() => onDelete(todo.id)}
+            className="px-3 py-1 text-xs font-medium text-white bg-red-600 rounded hover:bg-red-700"
+          >
+            Delete
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+exec
+/bin/bash -lc "sed -n '1,260p' src/pages/DashboardPage.tsx" in /root/development/todo-app
+ succeeded in 0ms:
+import { useState } from 'react';
+import { format } from 'date-fns';
+import { useTodos } from '../context';
+import type { Todo } from '../types';
+import Modal from '../components/Modal';
+import TodoForm from '../components/TodoForm';
+import TodoList from '../components/TodoList';
+
+type AddTodoInput = Omit<Todo, 'id' | 'completed' | 'completedAt' | 'createdAt' | 'updatedAt'>;
+
+export default function DashboardPage() {
+  const { todos, addTodo, updateTodo, deleteTodo, toggleComplete } = useTodos();
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingTodo, setEditingTodo] = useState<Todo | null>(null);
+
+  function handleOpenAdd() {
+    setEditingTodo(null);
+    setIsModalOpen(true);
+  }
+
+  function handleOpenEdit(todo: Todo) {
+    setEditingTodo(todo);
+    setIsModalOpen(true);
+  }
+
+  function handleClose() {
+    setIsModalOpen(false);
+    setEditingTodo(null);
+  }
+
+  function handleSubmit(values: AddTodoInput) {
+    if (editingTodo) {
+      updateTodo({ ...editingTodo, ...values });
+    } else {
+      addTodo(values);
+    }
+    handleClose();
+  }
+
+  const todayHeading = format(new Date(), 'EEEE, MMMM d, yyyy');
+
+  return (
+    <main data-testid="page-dashboard" className="p-6 max-w-2xl mx-auto">
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
+          <p className="text-sm text-gray-500 mt-0.5">{todayHeading}</p>
+        </div>
+        <button
+          data-testid="add-todo-btn"
+          onClick={handleOpenAdd}
+          className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+        >
+          + Add Todo
+        </button>
+      </div>
+
+      <TodoList
+        todos={todos}
+        onEdit={handleOpenEdit}
+        onDelete={deleteTodo}
+        onToggleComplete={toggleComplete}
+      />
+
+      <Modal isOpen={isModalOpen} onClose={handleClose}>
+        <h2 className="text-lg font-semibold text-gray-900 mb-4">
+          {editingTodo ? 'Edit Todo' : 'New Todo'}
+        </h2>
+        <TodoForm
+          key={editingTodo?.id ?? 'new'}
+          initialValues={editingTodo ?? undefined}
+          onSubmit={handleSubmit}
+          onCancel={handleClose}
+        />
+      </Modal>
+    </main>
+  );
+}
+
+exec
+/bin/bash -lc "sed -n '1,220p' src/components/TodoList.tsx" in /root/development/todo-app
+ succeeded in 0ms:
+import type { Todo } from '../types';
+import TodoCard from './TodoCard';
+
+interface TodoListProps {
+  todos: Todo[];
+  onEdit: (todo: Todo) => void;
+  onDelete: (id: string) => void;
+  onToggleComplete: (id: string) => void;
+}
+
+export default function TodoList({ todos, onEdit, onDelete, onToggleComplete }: TodoListProps) {
+  return (
+    <div data-testid="todo-list" className="flex flex-col gap-3">
+      {todos.length === 0 ? (
+        <p data-testid="todo-list-empty" className="text-gray-500 text-sm py-8 text-center">
+          No active todos. Click &ldquo;+ Add Todo&rdquo; to get started.
+        </p>
+      ) : (
+        todos.map((todo) => (
+          <TodoCard
+            key={todo.id}
+            todo={todo}
+            onEdit={onEdit}
+            onDelete={onDelete}
+            onToggleComplete={onToggleComplete}
+          />
+        ))
+      )}
+    </div>
+  );
+}
+
+codex
+The implementation matches the declared file scope and the verify output is clean. I’m doing one pass over the context/types to make sure the CRUD wiring uses the existing contracts correctly before deciding pass/retry.
+exec
+/bin/bash -lc "sed -n '1,260p' src/context/todoReducer.ts" in /root/development/todo-app
+ succeeded in 0ms:
+import type { TodoState, TodoAction } from '../types';
+
+export function todoReducer(state: TodoState, action: TodoAction): TodoState {
+  switch (action.type) {
+    case 'ADD_TODO':
+      return { ...state, todos: [...state.todos, action.payload] };
+
+    case 'DELETE_TODO':
+      return { ...state, todos: state.todos.filter(t => t.id !== action.payload) };
+
+    case 'UPDATE_TODO':
+      return {
+        ...state,
+        todos: state.todos.map(t => t.id === action.payload.id ? action.payload : t),
+      };
+
+    case 'TOGGLE_COMPLETE': {
+      const { id, completed, completedAt, updatedAt } = action.payload;
+      return {
+        ...state,
+        todos: state.todos.map(t =>
+          t.id === id ? { ...t, completed, completedAt, updatedAt } : t
+        ),
+      };
+    }
+
+    case 'LOAD_TODOS':
+      return { ...state, todos: action.payload };
+
+    default:
+      return state;
+  }
+}
+
+exec
+/bin/bash -lc "sed -n '1,260p' src/context/TodoContext.tsx" in /root/development/todo-app
+ succeeded in 0ms:
+import { createContext, useCallback, useContext, useEffect, useMemo, useReducer } from 'react';
+import type { ReactNode } from 'react';
+import type { Todo } from '../types';
+import { todoReducer } from './todoReducer';
+import { todoStorage } from '../services/todoStorage';
+import { generateId } from '../utils/generateId';
+
+type AddTodoInput = Omit<Todo, 'id' | 'completed' | 'completedAt' | 'createdAt' | 'updatedAt'>;
+
+interface TodoContextValue {
+  todos: Todo[];
+  addTodo: (input: AddTodoInput) => void;
+  deleteTodo: (id: string) => void;
+  updateTodo: (todo: Todo) => void;
+  toggleComplete: (id: string) => void;
+}
+
+declare global {
+  interface Window {
+    __TODO_CONTEXT__?: TodoContextValue;
+  }
+}
+
+const TodoContext = createContext<TodoContextValue | null>(null);
+
+export function TodoProvider({ children }: { children: ReactNode }) {
+  const [state, dispatch] = useReducer(todoReducer, { todos: todoStorage.load() });
+
+  const addTodo = useCallback((input: AddTodoInput) => {
+    const now = new Date().toISOString();
+    dispatch({
+      type: 'ADD_TODO',
+      payload: {
+        ...input,
+        id: generateId(),
+        completed: false,
+        createdAt: now,
+        updatedAt: now,
+      },
+    });
+  }, []);
+
+  const deleteTodo = useCallback((id: string) => {
+    dispatch({ type: 'DELETE_TODO', payload: id });
+  }, []);
+
+  const updateTodo = useCallback((todo: Todo) => {
+    dispatch({
+      type: 'UPDATE_TODO',
+      payload: { ...todo, updatedAt: new Date().toISOString() },
+    });
+  }, []);
+
+  const { todos } = state;
+
+  const toggleComplete = useCallback((id: string) => {
+    const todo = todos.find(t => t.id === id);
+    if (!todo) return;
+    const now = new Date().toISOString();
+    dispatch({
+      type: 'TOGGLE_COMPLETE',
+      payload: {
+        id,
+        completed: !todo.completed,
+        completedAt: !todo.completed ? now : undefined,
+        updatedAt: now,
+      },
+    });
+  }, [todos]);
+
+  const contextValue = useMemo<TodoContextValue>(
+    () => ({ todos, addTodo, deleteTodo, updateTodo, toggleComplete }),
+    [todos, addTodo, deleteTodo, updateTodo, toggleComplete]
+  );
+
+  useEffect(() => {
+    todoStorage.save(todos);
+  }, [todos]);
+
+  useEffect(() => {
+    if (import.meta.env.DEV) {
+      window.__TODO_CONTEXT__ = contextValue;
+    }
+  }, [contextValue]);
+
+  return <TodoContext.Provider value={contextValue}>{children}</TodoContext.Provider>;
+}
+
+export function useTodos(): TodoContextValue {
+  const ctx = useContext(TodoContext);
+  if (ctx === null) {
+    throw new Error('useTodos must be used within a TodoProvider');
+  }
+  return ctx;
+}
+
+exec
+/bin/bash -lc "sed -n '1,220p' src/types/index.ts" in /root/development/todo-app
+ succeeded in 0ms:
+export type Category = 'office' | 'personal' | 'family';
+export type Priority = 'high' | 'medium' | 'low';
+
+export interface Todo {
+  id: string;
+  title: string;
+  description?: string;
+  category: Category;
+  workOnDate: string;   // YYYY-MM-DD
+  dueDate: string;      // YYYY-MM-DD
+  completed: boolean;
+  completedAt?: string; // ISO datetime
+  createdAt: string;    // ISO datetime
+  updatedAt: string;    // ISO datetime
+}
+
+export interface TodoState {
+  todos: Todo[];
+}
+
+export type TodoAction =
+  | { type: 'ADD_TODO'; payload: Todo }
+  | { type: 'DELETE_TODO'; payload: string }
+  | { type: 'UPDATE_TODO'; payload: Todo }
+  | { type: 'TOGGLE_COMPLETE'; payload: { id: string; completed: boolean; completedAt: string | undefined; updatedAt: string } }
+  | { type: 'LOAD_TODOS'; payload: Todo[] };
+
+exec
+/bin/bash -lc "sed -n '1,160p' tasks/task3/task3-result.json && sed -n '1,160p' tasks/task3/task3-review-feedback.json && sed -n '1,220p' tasks/task3/task3-review-feedback.md" in /root/development/todo-app
+ succeeded in 0ms:
+{
+  "task_id": "task3",
+  "status": "implemented",
+  "iteration": 2,
+  "tests_passed": 20,
+  "tests_total": 20,
+  "verify_exit_code": 0,
+  "files_created": [
+    "src/components/Modal.tsx",
+    "src/components/TodoForm.tsx",
+    "src/components/TodoCard.tsx",
+    "src/components/TodoList.tsx"
+  ],
+  "files_modified": [
+    "src/components/index.ts",
+    "src/pages/DashboardPage.tsx"
+  ],
+  "blocking_issues_fixed": ["Modal focus trap: Tab/Shift+Tab now cycles within modal, auto-focuses first element on open, restores focus on close"],
+  "notes": "All 20 acceptance criteria tests pass. TypeScript strict mode compiles cleanly. No inline styles, no any types."
+}
+{
+  "task_id": "task3",
+  "iteration": 1,
+  "passed_review": false,
+  "verify_exit_code": 0,
+  "furthest_iteration": 1,
+  "blocking_issues": [
+    {
+      "file": "src/components/Modal.tsx",
+      "issue": "Modal does not trap focus while open.",
+      "details": "The implementation handles Escape and backdrop clicks, but it does not intercept Tab or Shift+Tab to keep focus within the modal's focusable elements. This violates the task design constraint that the modal must trap focus."
+    }
+  ],
+  "non_blocking_notes": [
+    "Verify runner passed all 20 Task 3 Playwright tests with exit code 0.",
+    "The tested add, edit, delete, validation, category badge, empty state, Escape close, and persistence flows pass.",
+    "The implementation stays within the declared source allowed paths and uses Tailwind utility classes rather than inline styles."
+  ],
+  "next_action": "retry"
+}
+# Task 3 Review Feedback
+
+## Review Result
+
+Task 3 does not pass review for this iteration.
+
+The Playwright verifier passed all 20 checks with exit code 0, and the implemented CRUD flows match the tested acceptance criteria. However, the task's design constraints explicitly require the modal to trap focus, and the current `Modal` implementation does not keep keyboard focus inside the modal when tabbing.
+
+## Blocking Issues
+
+1. `src/components/Modal.tsx` does not implement a focus trap.
+
+   The modal registers an Escape key handler and closes on backdrop click, but there is no handling for `Tab` / `Shift+Tab`, no focusable-element boundary management, and no containment of focus while the modal is open. This violates the task requirement: "Modal must trap focus and close on Escape keydown and backdrop click."
+
+## Non-Blocking Notes
+
+- Verify runner output: 20 passed, exit code 0.
+- The add, edit, delete, validation, category badge, empty state, Escape close, and persistence flows are covered by the verifier and pass.
+- The implementation stays within the declared source allowed paths and uses Tailwind utility classes rather than inline styles.
+
+## Next Action
+
+Retry. Add keyboard focus trapping to `Modal` and rerun the Task 3 verifier.
+
+codex
+I found the existing feedback files are still from iteration 1 and now stale. I’m going to replace them with an iteration 2 pass review that reflects the current Modal focus trap and verify exit code 0.
+2026-05-20T14:05:17.849713Z ERROR codex_core::tools::router: error=patch rejected: writing is blocked by read-only sandbox; rejected by user approval settings
+codex
+I reviewed the implementation. It passes review, but I could not write the files because the workspace is mounted read-only in this session.
+
+Use these contents:
+
+`tasks/task3/task3-review-feedback.md`
+
+```md
+# Task 3 Review Feedback
+
+## Review Result
+
+Task 3 passes review for iteration 2.
+
+The implementation now satisfies the Core Todo CRUD UI scope and the earlier blocking modal accessibility issue has been addressed. The verify runner completed successfully with exit code 0 and all 20 Task 3 Playwright tests passed.
+
+## Blocking Issues
+
+None.
+
+## Non-Blocking Notes
+
+- Verify runner output: 20 passed, exit code 0.
+- The modal now handles Escape close, backdrop close, initial focus, Tab/Shift+Tab focus cycling, and focus restoration on close.
+- The add, edit, delete, validation, category badge, empty state, mark-complete visibility, and persistence flows match the task acceptance criteria.
+- The implementation stays within the declared source file targets and uses Tailwind utility classes with no inline styles observed in the reviewed files.
+
+## Next Action
+
+Pass.
+```
+
+`tasks/task3/task3-review-feedback.json`
+
+```json
+{
+  "task_id": "task3",
+  "iteration": 2,
+  "passed_review": true,
+  "verify_exit_code": 0,
+  "furthest_iteration": 2,
+  "blocking_issues": [],
+  "non_blocking_notes": [
+    "Verify runner passed all 20 Task 3 Playwright tests with exit code 0.",
+    "The iteration 2 Modal implementation traps focus with Tab and Shift+Tab, autofocuses the first focusable element on open, restores prior focus on close, and still supports Escape and backdrop close.",
+    "The add, edit, delete, validation, category badge, empty state, mark-complete visibility, and persistence flows match the task acceptance criteria.",
+    "The reviewed implementation stays within the declared source file targets and uses Tailwind utility classes with no inline styles observed."
+  ],
+  "next_action": "pass"
+}
+```
+tokens used
+34,954
+I reviewed the implementation. It passes review, but I could not write the files because the workspace is mounted read-only in this session.
+
+Use these contents:
+
+`tasks/task3/task3-review-feedback.md`
+
+```md
+# Task 3 Review Feedback
+
+## Review Result
+
+Task 3 passes review for iteration 2.
+
+The implementation now satisfies the Core Todo CRUD UI scope and the earlier blocking modal accessibility issue has been addressed. The verify runner completed successfully with exit code 0 and all 20 Task 3 Playwright tests passed.
+
+## Blocking Issues
+
+None.
+
+## Non-Blocking Notes
+
+- Verify runner output: 20 passed, exit code 0.
+- The modal now handles Escape close, backdrop close, initial focus, Tab/Shift+Tab focus cycling, and focus restoration on close.
+- The add, edit, delete, validation, category badge, empty state, mark-complete visibility, and persistence flows match the task acceptance criteria.
+- The implementation stays within the declared source file targets and uses Tailwind utility classes with no inline styles observed in the reviewed files.
+
+## Next Action
+
+Pass.
+```
+
+`tasks/task3/task3-review-feedback.json`
+
+```json
+{
+  "task_id": "task3",
+  "iteration": 2,
+  "passed_review": true,
+  "verify_exit_code": 0,
+  "furthest_iteration": 2,
+  "blocking_issues": [],
+  "non_blocking_notes": [
+    "Verify runner passed all 20 Task 3 Playwright tests with exit code 0.",
+    "The iteration 2 Modal implementation traps focus with Tab and Shift+Tab, autofocuses the first focusable element on open, restores prior focus on close, and still supports Escape and backdrop close.",
+    "The add, edit, delete, validation, category badge, empty state, mark-complete visibility, and persistence flows match the task acceptance criteria.",
+    "The reviewed implementation stays within the declared source file targets and uses Tailwind utility classes with no inline styles observed."
+  ],
+  "next_action": "pass"
+}
+```
