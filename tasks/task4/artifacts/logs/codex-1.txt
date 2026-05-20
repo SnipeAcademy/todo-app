@@ -1,0 +1,858 @@
+Reading additional input from stdin...
+OpenAI Codex v0.130.0
+--------
+workdir: /root/development/todo-app
+model: gpt-5.5
+provider: openai
+approval: never
+sandbox: read-only
+reasoning effort: none
+reasoning summaries: none
+session id: 019e4691-1574-7711-b01a-07cf56edd4d6
+--------
+user
+You are Codex reviewing a task implementation. Read the task spec (task4.md), what was built (task4-result.md), and the verify runner output above. Output tasks/task4/task4-review-feedback.md (human-readable notes) and tasks/task4/task4-review-feedback.json (machine-readable, strict schema). The json must contain: task_id, iteration, passed_review (bool), verify_exit_code (int), furthest_iteration (int), blocking_issues (array), non_blocking_notes (array), next_action (pass|retry|terminate).
+
+<stdin>
+# CONVENTIONS.md
+
+This file is the single source of truth for naming, structure, tooling, and behaviour rules across the entire project. It is passed as context to every Claude Code and Codex invocation.
+
+---
+
+## Naming
+
+- **Components**: PascalCase, one component per file.
+- **Files**: `kebab-case` for non-component files, `PascalCase` for component files.
+- **Test IDs**: `data-testid` attribute on every interactive and key display element, formatted as `kebab-case`.
+- **Context files**: Named `{Domain}Context.tsx`.
+- **Types**: Defined in `src/types/index.ts`.
+
+## Folder structure
+
+```
+todo-app/
+├── src/
+│   ├── components/        # Reusable UI components (PascalCase files)
+│   ├── context/           # React context providers ({Domain}Context.tsx)
+│   ├── hooks/             # Custom React hooks (useFoo.ts)
+│   ├── types/             # TypeScript type definitions (index.ts)
+│   ├── utils/             # Pure utility functions (kebab-case)
+│   ├── App.tsx            # Root application component
+│   └── main.tsx           # Entry point
+├── tests/                 # Playwright end-to-end tests
+├── tasks/                 # Task definitions and verification scripts
+├── public/                # Static assets
+├── package.json
+├── vite.config.ts
+├── tsconfig.json
+├── tailwind.config.js
+└── CONVENTIONS.md
+```
+
+## Error handling
+
+- Never swallow errors silently — always surface to the user or re-throw.
+- Use `try/catch` blocks around async operations with meaningful error messages.
+- Display user-facing errors in the UI; log developer-facing errors to console.
+- Do not use empty `catch {}` blocks.
+
+## Styling
+
+- **Tailwind CSS v3** is the only styling system.
+- No inline styles (`style={}` prop is forbidden).
+- No CSS Modules, no styled-components, no emotion, no other CSS-in-JS libraries.
+- Use Tailwind utility classes exclusively. Prefer composition over custom CSS.
+- When Tailwind utility classes are insufficient, use `@apply` in a CSS file — never fall back to inline styles.
+
+## Verification tooling
+
+- **Playwright** is the testing framework for end-to-end verification.
+- Tests use the `browser_app` protocol for browser automation.
+- Every interactive element and key display element must have a `data-testid` attribute.
+- Playwright tests must use explicit waits on element state (e.g., `locator.isEnabled()`, `locator.isVisible()`), never `waitForTimeout`.
+
+## Environment contract
+
+```json
+{
+  "setup_command": "npm install",
+  "dev_command": "npm run dev",
+  "verify_command": "npx playwright test",
+  "required_env_vars": []
+}
+```
+
+### Stack
+
+| Layer        | Technology                  |
+|-------------|-----------------------------|
+| Build       | Vite                        |
+| Framework   | React 18                    |
+| Language    | TypeScript (strict mode)    |
+| Routing     | react-router-dom v6         |
+| Styling     | Tailwind CSS v3             |
+| Dates       | date-fns                    |
+| State       | React context + useReducer   |
+| Storage     | localStorage only (no backend) |
+| Testing     | Playwright                   |
+
+## What Claude Code must never do
+
+1. **Install packages** not already declared in `package.json` unless the task's scope explicitly requires it.
+2. **Touch files** outside the task's declared `allowed_paths`.
+3. **Use inline styles** — all styling must go through Tailwind utility classes.
+4. **Mix styling systems** — no CSS Modules, no styled-components, no other CSS-in-JS.
+5. **Use the `any` type** in TypeScript — always define proper types or use `unknown`.
+6. **Swallow errors silently** — always surface to the user or re-throw.
+7. **Use `waitForTimeout`** in Playwright tests — use explicit waits on element state instead.
+# Task 4: Priority System & Day-based Sorting
+
+## Objective
+Implement a priority engine that surfaces the right category of work depending on whether it is a weekday or weekend. Display a priority badge on every todo card and sort the Dashboard list by effective priority, with due date as the tiebreaker.
+
+## Scope
+- `getPriority(category, referenceDate?)` utility function
+- `sortTodosByPriority(todos, referenceDate?)` utility function
+- `<PriorityBadge>` component
+- Update `<TodoCard>` to compute and display the priority badge
+- Update `<DashboardPage>` to sort todos before rendering and show a mode banner
+
+## Out of scope
+- Calendar-specific priority display (task 5 uses `sortTodosByPriority` with its own `referenceDate`)
+- No new data fields — priority is derived at render time, not stored
+- Do not modify the data layer (context, reducer, types, localStorage)
+
+## Acceptance criteria
+- [ ] On a weekday (Mon–Fri), office todos have `data-testid="priority-badge"` text "High"
+- [ ] On a weekday (Mon–Fri), personal todos have priority badge "Medium"
+- [ ] On a weekday (Mon–Fri), family todos have priority badge "Low"
+- [ ] On a weekend (Sat–Sun), family todos have priority badge "High"
+- [ ] On a weekend (Sat–Sun), personal todos have priority badge "Medium"
+- [ ] On a weekend (Sat–Sun), office todos have priority badge "Low"
+- [ ] High badge element has a class containing `red`
+- [ ] Medium badge element has a class containing `yellow`
+- [ ] Low badge element has a class containing `gray`
+- [ ] Dashboard list is sorted: High priority cards appear before Medium, Medium before Low
+- [ ] Todos with equal priority are sorted by `dueDate` ascending (earlier due date first)
+- [ ] `data-testid="priority-mode-banner"` is visible on the Dashboard
+- [ ] Banner text contains "Weekday" on Mon–Fri
+- [ ] Banner text contains "Weekend" on Sat–Sun
+
+## Dependencies
+- task3 must be complete (TodoCard exists and is rendering)
+
+## File and folder targets
+- Create: `src/utils/priority.ts`
+- Modify: `src/utils/index.ts`
+- Create: `src/components/PriorityBadge.tsx`
+- Modify: `src/components/TodoCard.tsx` (add PriorityBadge, add data-testid to badge)
+- Modify: `src/components/index.ts`
+- Modify: `src/pages/DashboardPage.tsx` (sort todos, add mode banner)
+- Do not touch: `src/context/`, `src/services/`, `src/types/`
+- Do not touch: `src/components/Modal.tsx`, `src/components/TodoForm.tsx`, `src/components/TodoList.tsx`
+
+## Design constraints
+- Use `isWeekend(date)` from `date-fns` — do not reimplement day-of-week logic
+- `getPriority` and `sortTodosByPriority` must accept an optional `referenceDate: Date` parameter — defaults to `new Date()` when omitted. This allows CalendarPage (task 5) to pass a specific date.
+- Priority badge colours: `high` → `bg-red-100 text-red-700`, `medium` → `bg-yellow-100 text-yellow-700`, `low` → `bg-gray-100 text-gray-600`
+- The `data-testid="priority-badge"` attribute must be on the outermost element of `<PriorityBadge>`
+- The `data-testid="priority-mode-banner"` attribute must be on the banner element in DashboardPage
+
+### Priority rules (encode exactly)
+**Weekday (Mon–Fri)**
+| Category | Priority |
+|---|---|
+| office | high |
+| personal | medium |
+| family | low |
+
+**Weekend (Sat–Sun)**
+| Category | Priority |
+|---|---|
+| family | high |
+| personal | medium |
+| office | low |
+
+### Sort order
+1. Priority weight: high=0, medium=1, low=2 (ascending)
+2. Tiebreaker: `dueDate` string comparison ascending (ISO format sorts correctly)
+
+## Context
+Priority is the founder's core workflow aid. The system is intentionally simple — two modes, no user configuration. A founder should open the app on Monday and immediately see office work at the top; on Saturday, family commitments lead. The priority is always computed from today's date unless a specific date is passed (for the calendar view).
+
+### Test date mocking
+The verify tests will mock `Date` in the browser using `page.addInitScript` to fix the date to a known weekday and weekend. The priority utility must call `new Date()` (not `Date.now()`) so the mock intercepts it correctly. Alternatively, the utility accepts `referenceDate` — tests will always pass `referenceDate` explicitly.
+# Task 4 Result: Priority System & Day-based Sorting
+
+## Status: implemented
+
+## Files created / modified
+
+| File | Action |
+|---|---|
+| `src/utils/priority.ts` | Created — `getPriority` and `sortTodosByPriority` |
+| `src/utils/index.ts` | Modified — re-exports both priority utilities |
+| `src/components/PriorityBadge.tsx` | Created — renders coloured priority badge |
+| `src/components/TodoCard.tsx` | Modified — imports and renders `<PriorityBadge>` |
+| `src/components/index.ts` | Modified — exports `PriorityBadge` |
+| `src/pages/DashboardPage.tsx` | Modified — sorts todos, adds mode banner |
+
+## What was built
+
+### `src/utils/priority.ts`
+- `getPriority(category, referenceDate?)` — uses `isWeekend` from `date-fns` to pick the correct priority table; defaults `referenceDate` to `new Date()` so the browser Date mock intercepts correctly.
+- `sortTodosByPriority(todos, referenceDate?)` — sorts by priority weight (high=0, medium=1, low=2) then by `dueDate` ascending as a tiebreaker. Returns a new array without mutating the input.
+
+### `src/components/PriorityBadge.tsx`
+- Renders a `<span data-testid="priority-badge">` with:
+  - `bg-red-100 text-red-700` for high
+  - `bg-yellow-100 text-yellow-700` for medium
+  - `bg-gray-100 text-gray-600` for low
+- Accepts optional `referenceDate` for CalendarPage (task 5).
+
+### `src/components/TodoCard.tsx`
+- Added `<PriorityBadge category={todo.category} />` inline with the category badge — no `referenceDate` passed so it uses `new Date()`.
+
+### `src/pages/DashboardPage.tsx`
+- Calls `sortTodosByPriority(todos, today)` before passing to `<TodoList>`.
+- Renders `<div data-testid="priority-mode-banner">` showing "Weekday Mode" or "Weekend Mode" based on `isWeekend(today)`.
+
+## Acceptance criteria coverage
+
+- [x] Office → High badge on weekday
+- [x] Personal → Medium badge on weekday
+- [x] Family → Low badge on weekday
+- [x] Family → High badge on weekend
+- [x] Personal → Medium badge on weekend
+- [x] Office → Low badge on weekend
+- [x] High badge has class containing `red`
+- [x] Medium badge has class containing `yellow`
+- [x] Low badge has class containing `gray`
+- [x] Dashboard sorted High → Medium → Low
+- [x] Same-priority todos sorted by `dueDate` ascending
+- [x] `data-testid="priority-mode-banner"` present on Dashboard
+- [x] Banner text "Weekday" on Mon–Fri
+- [x] Banner text "Weekend" on Sat–Sun
+
+Running 13 tests using 1 worker
+
+  ✓   1 [chromium] › tasks/task4/task4-verify.spec.ts:65:3 › Task 4: Priority System — Weekday › office todo shows High priority badge on weekday (825ms)
+  ✓   2 [chromium] › tasks/task4/task4-verify.spec.ts:71:3 › Task 4: Priority System — Weekday › personal todo shows Medium priority badge on weekday (467ms)
+  ✓   3 [chromium] › tasks/task4/task4-verify.spec.ts:76:3 › Task 4: Priority System — Weekday › family todo shows Low priority badge on weekday (429ms)
+  ✓   4 [chromium] › tasks/task4/task4-verify.spec.ts:81:3 › Task 4: Priority System — Weekday › High badge has red class (454ms)
+  ✓   5 [chromium] › tasks/task4/task4-verify.spec.ts:87:3 › Task 4: Priority System — Weekday › Medium badge has yellow class (465ms)
+  ✓   6 [chromium] › tasks/task4/task4-verify.spec.ts:93:3 › Task 4: Priority System — Weekday › Low badge has gray class (423ms)
+  ✓   7 [chromium] › tasks/task4/task4-verify.spec.ts:99:3 › Task 4: Priority System — Weekday › mode banner contains "Weekday" on weekday (286ms)
+  ✓   8 [chromium] › tasks/task4/task4-verify.spec.ts:103:3 › Task 4: Priority System — Weekday › weekday sort order: Office → Personal → Family (702ms)
+  ✓   9 [chromium] › tasks/task4/task4-verify.spec.ts:129:3 › Task 4: Priority System — Weekend › family todo shows High priority badge on weekend (429ms)
+  ✓  10 [chromium] › tasks/task4/task4-verify.spec.ts:134:3 › Task 4: Priority System — Weekend › office todo shows Low priority badge on weekend (462ms)
+  ✓  11 [chromium] › tasks/task4/task4-verify.spec.ts:139:3 › Task 4: Priority System — Weekend › mode banner contains "Weekend" on weekend (260ms)
+  ✓  12 [chromium] › tasks/task4/task4-verify.spec.ts:143:3 › Task 4: Priority System — Weekend › weekend sort order: Family → Personal → Office (674ms)
+  ✓  13 [chromium] › tasks/task4/task4-verify.spec.ts:168:3 › Task 4: Sort tiebreaker › same-priority todos sorted by dueDate ascending (541ms)
+
+  13 passed (7.2s)
+</stdin>
+warning: Codex could not find bubblewrap on PATH. Install bubblewrap with your OS package manager. See the sandbox prerequisites: https://developers.openai.com/codex/concepts/sandboxing#prerequisites. Codex will use the bundled bubblewrap in the meantime.
+codex
+I’ll review the task files and implementation shape, then write the two requested feedback artifacts. Since the workspace is read-only, I’ll first confirm whether the target files already exist or whether writing is blocked in this session.
+exec
+/bin/bash -lc 'pwd && rg --files tasks/task4 src | sort' in /root/development/todo-app
+ succeeded in 0ms:
+/root/development/todo-app
+src/App.tsx
+src/components/Layout.tsx
+src/components/Modal.tsx
+src/components/PriorityBadge.tsx
+src/components/TodoCard.tsx
+src/components/TodoForm.tsx
+src/components/TodoList.tsx
+src/components/index.ts
+src/context/TodoContext.tsx
+src/context/index.ts
+src/context/todoReducer.ts
+src/hooks/index.ts
+src/index.css
+src/main.tsx
+src/pages/CalendarPage.tsx
+src/pages/CompletedPage.tsx
+src/pages/DashboardPage.tsx
+src/pages/index.ts
+src/services/index.ts
+src/services/todoStorage.ts
+src/types/index.ts
+src/utils/generateId.ts
+src/utils/index.ts
+src/utils/priority.ts
+src/vite-env.d.ts
+tasks/task4/artifacts/logs/codex-1.txt
+tasks/task4/artifacts/logs/loop-1.txt
+tasks/task4/artifacts/verify-output.txt
+tasks/task4/task4-assumptions.md
+tasks/task4/task4-result.json
+tasks/task4/task4-result.md
+tasks/task4/task4-verify.spec.ts
+tasks/task4/task4.manifest.json
+tasks/task4/task4.md
+
+exec
+/bin/bash -lc "sed -n '1,240p' tasks/task4/task4.md" in /root/development/todo-app
+ succeeded in 0ms:
+# Task 4: Priority System & Day-based Sorting
+
+## Objective
+Implement a priority engine that surfaces the right category of work depending on whether it is a weekday or weekend. Display a priority badge on every todo card and sort the Dashboard list by effective priority, with due date as the tiebreaker.
+
+## Scope
+- `getPriority(category, referenceDate?)` utility function
+- `sortTodosByPriority(todos, referenceDate?)` utility function
+- `<PriorityBadge>` component
+- Update `<TodoCard>` to compute and display the priority badge
+- Update `<DashboardPage>` to sort todos before rendering and show a mode banner
+
+## Out of scope
+- Calendar-specific priority display (task 5 uses `sortTodosByPriority` with its own `referenceDate`)
+- No new data fields — priority is derived at render time, not stored
+- Do not modify the data layer (context, reducer, types, localStorage)
+
+## Acceptance criteria
+- [ ] On a weekday (Mon–Fri), office todos have `data-testid="priority-badge"` text "High"
+- [ ] On a weekday (Mon–Fri), personal todos have priority badge "Medium"
+- [ ] On a weekday (Mon–Fri), family todos have priority badge "Low"
+- [ ] On a weekend (Sat–Sun), family todos have priority badge "High"
+- [ ] On a weekend (Sat–Sun), personal todos have priority badge "Medium"
+- [ ] On a weekend (Sat–Sun), office todos have priority badge "Low"
+- [ ] High badge element has a class containing `red`
+- [ ] Medium badge element has a class containing `yellow`
+- [ ] Low badge element has a class containing `gray`
+- [ ] Dashboard list is sorted: High priority cards appear before Medium, Medium before Low
+- [ ] Todos with equal priority are sorted by `dueDate` ascending (earlier due date first)
+- [ ] `data-testid="priority-mode-banner"` is visible on the Dashboard
+- [ ] Banner text contains "Weekday" on Mon–Fri
+- [ ] Banner text contains "Weekend" on Sat–Sun
+
+## Dependencies
+- task3 must be complete (TodoCard exists and is rendering)
+
+## File and folder targets
+- Create: `src/utils/priority.ts`
+- Modify: `src/utils/index.ts`
+- Create: `src/components/PriorityBadge.tsx`
+- Modify: `src/components/TodoCard.tsx` (add PriorityBadge, add data-testid to badge)
+- Modify: `src/components/index.ts`
+- Modify: `src/pages/DashboardPage.tsx` (sort todos, add mode banner)
+- Do not touch: `src/context/`, `src/services/`, `src/types/`
+- Do not touch: `src/components/Modal.tsx`, `src/components/TodoForm.tsx`, `src/components/TodoList.tsx`
+
+## Design constraints
+- Use `isWeekend(date)` from `date-fns` — do not reimplement day-of-week logic
+- `getPriority` and `sortTodosByPriority` must accept an optional `referenceDate: Date` parameter — defaults to `new Date()` when omitted. This allows CalendarPage (task 5) to pass a specific date.
+- Priority badge colours: `high` → `bg-red-100 text-red-700`, `medium` → `bg-yellow-100 text-yellow-700`, `low` → `bg-gray-100 text-gray-600`
+- The `data-testid="priority-badge"` attribute must be on the outermost element of `<PriorityBadge>`
+- The `data-testid="priority-mode-banner"` attribute must be on the banner element in DashboardPage
+
+### Priority rules (encode exactly)
+**Weekday (Mon–Fri)**
+| Category | Priority |
+|---|---|
+| office | high |
+| personal | medium |
+| family | low |
+
+**Weekend (Sat–Sun)**
+| Category | Priority |
+|---|---|
+| family | high |
+| personal | medium |
+| office | low |
+
+### Sort order
+1. Priority weight: high=0, medium=1, low=2 (ascending)
+2. Tiebreaker: `dueDate` string comparison ascending (ISO format sorts correctly)
+
+## Context
+Priority is the founder's core workflow aid. The system is intentionally simple — two modes, no user configuration. A founder should open the app on Monday and immediately see office work at the top; on Saturday, family commitments lead. The priority is always computed from today's date unless a specific date is passed (for the calendar view).
+
+### Test date mocking
+The verify tests will mock `Date` in the browser using `page.addInitScript` to fix the date to a known weekday and weekend. The priority utility must call `new Date()` (not `Date.now()`) so the mock intercepts it correctly. Alternatively, the utility accepts `referenceDate` — tests will always pass `referenceDate` explicitly.
+
+exec
+/bin/bash -lc "sed -n '1,240p' tasks/task4/task4-result.md" in /root/development/todo-app
+ succeeded in 0ms:
+# Task 4 Result: Priority System & Day-based Sorting
+
+## Status: implemented
+
+## Files created / modified
+
+| File | Action |
+|---|---|
+| `src/utils/priority.ts` | Created — `getPriority` and `sortTodosByPriority` |
+| `src/utils/index.ts` | Modified — re-exports both priority utilities |
+| `src/components/PriorityBadge.tsx` | Created — renders coloured priority badge |
+| `src/components/TodoCard.tsx` | Modified — imports and renders `<PriorityBadge>` |
+| `src/components/index.ts` | Modified — exports `PriorityBadge` |
+| `src/pages/DashboardPage.tsx` | Modified — sorts todos, adds mode banner |
+
+## What was built
+
+### `src/utils/priority.ts`
+- `getPriority(category, referenceDate?)` — uses `isWeekend` from `date-fns` to pick the correct priority table; defaults `referenceDate` to `new Date()` so the browser Date mock intercepts correctly.
+- `sortTodosByPriority(todos, referenceDate?)` — sorts by priority weight (high=0, medium=1, low=2) then by `dueDate` ascending as a tiebreaker. Returns a new array without mutating the input.
+
+### `src/components/PriorityBadge.tsx`
+- Renders a `<span data-testid="priority-badge">` with:
+  - `bg-red-100 text-red-700` for high
+  - `bg-yellow-100 text-yellow-700` for medium
+  - `bg-gray-100 text-gray-600` for low
+- Accepts optional `referenceDate` for CalendarPage (task 5).
+
+### `src/components/TodoCard.tsx`
+- Added `<PriorityBadge category={todo.category} />` inline with the category badge — no `referenceDate` passed so it uses `new Date()`.
+
+### `src/pages/DashboardPage.tsx`
+- Calls `sortTodosByPriority(todos, today)` before passing to `<TodoList>`.
+- Renders `<div data-testid="priority-mode-banner">` showing "Weekday Mode" or "Weekend Mode" based on `isWeekend(today)`.
+
+## Acceptance criteria coverage
+
+- [x] Office → High badge on weekday
+- [x] Personal → Medium badge on weekday
+- [x] Family → Low badge on weekday
+- [x] Family → High badge on weekend
+- [x] Personal → Medium badge on weekend
+- [x] Office → Low badge on weekend
+- [x] High badge has class containing `red`
+- [x] Medium badge has class containing `yellow`
+- [x] Low badge has class containing `gray`
+- [x] Dashboard sorted High → Medium → Low
+- [x] Same-priority todos sorted by `dueDate` ascending
+- [x] `data-testid="priority-mode-banner"` present on Dashboard
+- [x] Banner text "Weekday" on Mon–Fri
+- [x] Banner text "Weekend" on Sat–Sun
+
+codex
+The spec and result line up at a high level. I’m checking the actual source now for scope violations or hidden issues before I produce the review payload.
+exec
+/bin/bash -lc "sed -n '1,240p' src/components/TodoCard.tsx" in /root/development/todo-app
+ succeeded in 0ms:
+import { useState } from 'react';
+import type { Todo } from '../types';
+import PriorityBadge from './PriorityBadge';
+
+interface TodoCardProps {
+  todo: Todo;
+  onEdit: (todo: Todo) => void;
+  onDelete: (id: string) => void;
+  onToggleComplete: (id: string) => void;
+}
+
+const categoryBadgeClass: Record<string, string> = {
+  office: 'bg-blue-100 text-blue-800',
+  personal: 'bg-green-100 text-green-800',
+  family: 'bg-purple-100 text-purple-800',
+};
+
+export default function TodoCard({ todo, onEdit, onDelete, onToggleComplete }: TodoCardProps) {
+  const [showConfirm, setShowConfirm] = useState(false);
+
+  return (
+    <div data-testid="todo-card" className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
+      <div className="flex items-start gap-3">
+        <div className="flex-1 min-w-0">
+          <span data-testid="todo-card-title" className="text-base font-medium text-gray-900 block">
+            {todo.title}
+          </span>
+          <span
+            data-testid="todo-card-category-badge"
+            className={`inline-block mt-1 px-2 py-0.5 rounded-full text-xs font-medium ${
+              categoryBadgeClass[todo.category] ?? 'bg-gray-100 text-gray-800'
+            }`}
+          >
+            {todo.category.charAt(0).toUpperCase() + todo.category.slice(1)}
+          </span>
+          <PriorityBadge category={todo.category} />
+          <div className="mt-2 text-xs text-gray-500 space-y-0.5">
+            <p>Work on: {todo.workOnDate}</p>
+            <p>Due: {todo.dueDate}</p>
+          </div>
+        </div>
+        <div className="flex gap-1 shrink-0">
+          <button
+            data-testid="todo-card-complete-btn"
+            onClick={() => onToggleComplete(todo.id)}
+            className="px-2 py-1 text-xs font-medium text-green-700 bg-green-50 border border-green-200 rounded hover:bg-green-100"
+          >
+            {todo.completed ? 'Undo' : 'Complete'}
+          </button>
+          <button
+            data-testid="todo-card-edit-btn"
+            onClick={() => onEdit(todo)}
+            className="px-2 py-1 text-xs font-medium text-blue-700 bg-blue-50 border border-blue-200 rounded hover:bg-blue-100"
+          >
+            Edit
+          </button>
+          <button
+            data-testid="todo-card-delete-btn"
+            onClick={() => setShowConfirm(true)}
+            className="px-2 py-1 text-xs font-medium text-red-700 bg-red-50 border border-red-200 rounded hover:bg-red-100"
+          >
+            Delete
+          </button>
+        </div>
+      </div>
+
+      {showConfirm && (
+        <div className="mt-3 pt-3 border-t border-gray-100 flex items-center gap-2">
+          <span className="text-sm text-gray-600 flex-1">Delete this todo?</span>
+          <button
+            data-testid="todo-card-delete-cancel"
+            onClick={() => setShowConfirm(false)}
+            className="px-3 py-1 text-xs font-medium text-gray-700 bg-white border border-gray-300 rounded hover:bg-gray-50"
+          >
+            Cancel
+          </button>
+          <button
+            data-testid="todo-card-delete-confirm"
+            onClick={() => onDelete(todo.id)}
+            className="px-3 py-1 text-xs font-medium text-white bg-red-600 rounded hover:bg-red-700"
+          >
+            Delete
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+exec
+/bin/bash -lc "sed -n '1,220p' src/utils/priority.ts" in /root/development/todo-app
+ succeeded in 0ms:
+import { isWeekend } from 'date-fns';
+import type { Category, Priority, Todo } from '../types';
+
+const WEEKDAY_PRIORITY: Record<Category, Priority> = {
+  office: 'high',
+  personal: 'medium',
+  family: 'low',
+};
+
+const WEEKEND_PRIORITY: Record<Category, Priority> = {
+  family: 'high',
+  personal: 'medium',
+  office: 'low',
+};
+
+const PRIORITY_WEIGHT: Record<Priority, number> = {
+  high: 0,
+  medium: 1,
+  low: 2,
+};
+
+export function getPriority(category: Category, referenceDate: Date = new Date()): Priority {
+  return isWeekend(referenceDate) ? WEEKEND_PRIORITY[category] : WEEKDAY_PRIORITY[category];
+}
+
+export function sortTodosByPriority(todos: Todo[], referenceDate: Date = new Date()): Todo[] {
+  return [...todos].sort((a, b) => {
+    const wa = PRIORITY_WEIGHT[getPriority(a.category, referenceDate)];
+    const wb = PRIORITY_WEIGHT[getPriority(b.category, referenceDate)];
+    if (wa !== wb) return wa - wb;
+    return a.dueDate.localeCompare(b.dueDate);
+  });
+}
+
+exec
+/bin/bash -lc "sed -n '1,220p' src/components/PriorityBadge.tsx" in /root/development/todo-app
+ succeeded in 0ms:
+import type { Category } from '../types';
+import { getPriority } from '../utils';
+
+interface PriorityBadgeProps {
+  category: Category;
+  referenceDate?: Date;
+}
+
+const badgeClass: Record<string, string> = {
+  high: 'bg-red-100 text-red-700',
+  medium: 'bg-yellow-100 text-yellow-700',
+  low: 'bg-gray-100 text-gray-600',
+};
+
+export default function PriorityBadge({ category, referenceDate }: PriorityBadgeProps) {
+  const priority = getPriority(category, referenceDate);
+  const label = priority.charAt(0).toUpperCase() + priority.slice(1);
+  return (
+    <span
+      data-testid="priority-badge"
+      className={`inline-block px-2 py-0.5 rounded-full text-xs font-medium ${badgeClass[priority]}`}
+    >
+      {label}
+    </span>
+  );
+}
+
+exec
+/bin/bash -lc "sed -n '1,200p' tasks/task4/artifacts/verify-output.txt" in /root/development/todo-app
+ succeeded in 0ms:
+
+Running 13 tests using 1 worker
+
+  ✓   1 [chromium] › tasks/task4/task4-verify.spec.ts:65:3 › Task 4: Priority System — Weekday › office todo shows High priority badge on weekday (825ms)
+  ✓   2 [chromium] › tasks/task4/task4-verify.spec.ts:71:3 › Task 4: Priority System — Weekday › personal todo shows Medium priority badge on weekday (467ms)
+  ✓   3 [chromium] › tasks/task4/task4-verify.spec.ts:76:3 › Task 4: Priority System — Weekday › family todo shows Low priority badge on weekday (429ms)
+  ✓   4 [chromium] › tasks/task4/task4-verify.spec.ts:81:3 › Task 4: Priority System — Weekday › High badge has red class (454ms)
+  ✓   5 [chromium] › tasks/task4/task4-verify.spec.ts:87:3 › Task 4: Priority System — Weekday › Medium badge has yellow class (465ms)
+  ✓   6 [chromium] › tasks/task4/task4-verify.spec.ts:93:3 › Task 4: Priority System — Weekday › Low badge has gray class (423ms)
+  ✓   7 [chromium] › tasks/task4/task4-verify.spec.ts:99:3 › Task 4: Priority System — Weekday › mode banner contains "Weekday" on weekday (286ms)
+  ✓   8 [chromium] › tasks/task4/task4-verify.spec.ts:103:3 › Task 4: Priority System — Weekday › weekday sort order: Office → Personal → Family (702ms)
+  ✓   9 [chromium] › tasks/task4/task4-verify.spec.ts:129:3 › Task 4: Priority System — Weekend › family todo shows High priority badge on weekend (429ms)
+  ✓  10 [chromium] › tasks/task4/task4-verify.spec.ts:134:3 › Task 4: Priority System — Weekend › office todo shows Low priority badge on weekend (462ms)
+  ✓  11 [chromium] › tasks/task4/task4-verify.spec.ts:139:3 › Task 4: Priority System — Weekend › mode banner contains "Weekend" on weekend (260ms)
+  ✓  12 [chromium] › tasks/task4/task4-verify.spec.ts:143:3 › Task 4: Priority System — Weekend › weekend sort order: Family → Personal → Office (674ms)
+  ✓  13 [chromium] › tasks/task4/task4-verify.spec.ts:168:3 › Task 4: Sort tiebreaker › same-priority todos sorted by dueDate ascending (541ms)
+
+  13 passed (7.2s)
+
+exec
+/bin/bash -lc "sed -n '1,240p' src/pages/DashboardPage.tsx" in /root/development/todo-app
+ succeeded in 0ms:
+import { useState } from 'react';
+import { format, isWeekend } from 'date-fns';
+import { useTodos } from '../context';
+import type { Todo } from '../types';
+import Modal from '../components/Modal';
+import TodoForm from '../components/TodoForm';
+import TodoList from '../components/TodoList';
+import { sortTodosByPriority } from '../utils';
+
+type AddTodoInput = Omit<Todo, 'id' | 'completed' | 'completedAt' | 'createdAt' | 'updatedAt'>;
+
+export default function DashboardPage() {
+  const { todos, addTodo, updateTodo, deleteTodo, toggleComplete } = useTodos();
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingTodo, setEditingTodo] = useState<Todo | null>(null);
+
+  function handleOpenAdd() {
+    setEditingTodo(null);
+    setIsModalOpen(true);
+  }
+
+  function handleOpenEdit(todo: Todo) {
+    setEditingTodo(todo);
+    setIsModalOpen(true);
+  }
+
+  function handleClose() {
+    setIsModalOpen(false);
+    setEditingTodo(null);
+  }
+
+  function handleSubmit(values: AddTodoInput) {
+    if (editingTodo) {
+      updateTodo({ ...editingTodo, ...values });
+    } else {
+      addTodo(values);
+    }
+    handleClose();
+  }
+
+  const today = new Date();
+  const todayHeading = format(today, 'EEEE, MMMM d, yyyy');
+  const isWeekendDay = isWeekend(today);
+  const modeLabel = isWeekendDay ? 'Weekend Mode' : 'Weekday Mode';
+  const sortedTodos = sortTodosByPriority(todos, today);
+
+  return (
+    <main data-testid="page-dashboard" className="p-6 max-w-2xl mx-auto">
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
+          <p className="text-sm text-gray-500 mt-0.5">{todayHeading}</p>
+        </div>
+        <button
+          data-testid="add-todo-btn"
+          onClick={handleOpenAdd}
+          className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+        >
+          + Add Todo
+        </button>
+      </div>
+
+      <div
+        data-testid="priority-mode-banner"
+        className={`mb-4 px-4 py-2 rounded-md text-sm font-medium ${
+          isWeekendDay
+            ? 'bg-purple-50 text-purple-700 border border-purple-200'
+            : 'bg-blue-50 text-blue-700 border border-blue-200'
+        }`}
+      >
+        {modeLabel}
+      </div>
+
+      <TodoList
+        todos={sortedTodos}
+        onEdit={handleOpenEdit}
+        onDelete={deleteTodo}
+        onToggleComplete={toggleComplete}
+      />
+
+      <Modal isOpen={isModalOpen} onClose={handleClose}>
+        <h2 className="text-lg font-semibold text-gray-900 mb-4">
+          {editingTodo ? 'Edit Todo' : 'New Todo'}
+        </h2>
+        <TodoForm
+          key={editingTodo?.id ?? 'new'}
+          initialValues={editingTodo ?? undefined}
+          onSubmit={handleSubmit}
+          onCancel={handleClose}
+        />
+      </Modal>
+    </main>
+  );
+}
+
+codex
+The implementation uses `date-fns/isWeekend`, derives priority without storage changes, and the Playwright verifier passed all 13 checks. I’m doing one last scope check against the forbidden paths before attempting to write the review files.
+exec
+/bin/bash -lc "sed -n '1,220p' src/types/index.ts" in /root/development/todo-app
+ succeeded in 0ms:
+export type Category = 'office' | 'personal' | 'family';
+export type Priority = 'high' | 'medium' | 'low';
+
+export interface Todo {
+  id: string;
+  title: string;
+  description?: string;
+  category: Category;
+  workOnDate: string;   // YYYY-MM-DD
+  dueDate: string;      // YYYY-MM-DD
+  completed: boolean;
+  completedAt?: string; // ISO datetime
+  createdAt: string;    // ISO datetime
+  updatedAt: string;    // ISO datetime
+}
+
+export interface TodoState {
+  todos: Todo[];
+}
+
+export type TodoAction =
+  | { type: 'ADD_TODO'; payload: Todo }
+  | { type: 'DELETE_TODO'; payload: string }
+  | { type: 'UPDATE_TODO'; payload: Todo }
+  | { type: 'TOGGLE_COMPLETE'; payload: { id: string; completed: boolean; completedAt: string | undefined; updatedAt: string } }
+  | { type: 'LOAD_TODOS'; payload: Todo[] };
+
+exec
+/bin/bash -lc 'git status --short' in /root/development/todo-app
+ succeeded in 0ms:
+ M src/components/TodoCard.tsx
+ M src/components/index.ts
+ M src/pages/DashboardPage.tsx
+ M src/utils/index.ts
+?? src/components/PriorityBadge.tsx
+?? src/utils/priority.ts
+?? tasks/task4/artifacts/logs/
+?? tasks/task4/artifacts/verify-output.txt
+?? tasks/task4/task4-assumptions.md
+?? tasks/task4/task4-result.json
+?? tasks/task4/task4-result.md
+
+exec
+/bin/bash -lc 'git diff -- src/context src/services src/types src/components/Modal.tsx src/components/TodoForm.tsx src/components/TodoList.tsx' in /root/development/todo-app
+ succeeded in 0ms:
+exec
+/bin/bash -lc "sed -n '1,160p' src/utils/index.ts && sed -n '1,160p' src/components/index.ts" in /root/development/todo-app
+ succeeded in 0ms:
+export { generateId } from './generateId';
+export { getPriority, sortTodosByPriority } from './priority';
+export { default as Layout } from './Layout';
+export { default as Modal } from './Modal';
+export { default as PriorityBadge } from './PriorityBadge';
+export { default as TodoCard } from './TodoCard';
+export { default as TodoForm } from './TodoForm';
+export { default as TodoList } from './TodoList';
+
+exec
+/bin/bash -lc "sed -n '1,220p' tasks/task4/task4-result.json" in /root/development/todo-app
+ succeeded in 0ms:
+{
+  "task_id": "task4",
+  "status": "implemented",
+  "files_created": [
+    "src/utils/priority.ts",
+    "src/components/PriorityBadge.tsx"
+  ],
+  "files_modified": [
+    "src/utils/index.ts",
+    "src/components/TodoCard.tsx",
+    "src/components/index.ts",
+    "src/pages/DashboardPage.tsx"
+  ],
+  "files_deleted": [],
+  "notes": "Priority engine uses date-fns isWeekend; getPriority and sortTodosByPriority accept optional referenceDate defaulting to new Date(). PriorityBadge renders with red/yellow/gray Tailwind classes. DashboardPage sorts todos before render and shows priority-mode-banner."
+}
+
+codex
+No forbidden target diffs showed up, and `src/types/index.ts` already contains the `Priority` type used by the new utility. I’m going to write a pass review with empty blocking issues and the verifier exit code set to 0.
+2026-05-20T18:06:51.832571Z ERROR codex_core::tools::router: error=patch rejected: writing is blocked by read-only sandbox; rejected by user approval settings
+codex
+I reviewed Task 4 and attempted to create:
+
+- `tasks/task4/task4-review-feedback.md`
+- `tasks/task4/task4-review-feedback.json`
+
+The write was blocked by the current read-only sandbox, so the files were not created.
+
+Review result: **pass**. Verify exit code: `0`. All 13 Task 4 verifier tests passed, and I found no blocking issues or forbidden-path changes.
+
+Use this JSON content for `task4-review-feedback.json`:
+
+```json
+{
+  "task_id": "task4",
+  "iteration": 1,
+  "passed_review": true,
+  "verify_exit_code": 0,
+  "furthest_iteration": 1,
+  "blocking_issues": [],
+  "non_blocking_notes": [
+    "Verifier passed all 13 Task 4 checks.",
+    "Implementation uses date-fns isWeekend and preserves optional referenceDate support for both priority utilities.",
+    "Dashboard sorts by priority weight and dueDate, and displays the required priority mode banner.",
+    "No forbidden data-layer or excluded component changes were found during review."
+  ],
+  "next_action": "pass"
+}
+```
+tokens used
+23,434
+I reviewed Task 4 and attempted to create:
+
+- `tasks/task4/task4-review-feedback.md`
+- `tasks/task4/task4-review-feedback.json`
+
+The write was blocked by the current read-only sandbox, so the files were not created.
+
+Review result: **pass**. Verify exit code: `0`. All 13 Task 4 verifier tests passed, and I found no blocking issues or forbidden-path changes.
+
+Use this JSON content for `task4-review-feedback.json`:
+
+```json
+{
+  "task_id": "task4",
+  "iteration": 1,
+  "passed_review": true,
+  "verify_exit_code": 0,
+  "furthest_iteration": 1,
+  "blocking_issues": [],
+  "non_blocking_notes": [
+    "Verifier passed all 13 Task 4 checks.",
+    "Implementation uses date-fns isWeekend and preserves optional referenceDate support for both priority utilities.",
+    "Dashboard sorts by priority weight and dueDate, and displays the required priority mode banner.",
+    "No forbidden data-layer or excluded component changes were found during review."
+  ],
+  "next_action": "pass"
+}
+```
