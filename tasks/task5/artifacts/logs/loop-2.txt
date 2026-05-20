@@ -1,0 +1,6 @@
+Done. Here's what was fixed:
+
+- **Root cause**: `src/components/DayPanel.tsx` was missing from the repo entirely (the iteration 2 fix was never committed). The blocking inline-style violation existed because the file didn't exist at all.
+- **Fix**: Created `DayPanel.tsx` from scratch with zero inline styles — all styling via Tailwind utility classes (`min-h-0` in `className` on the container and scroll area, no `style={{}}` props anywhere).
+- **TypeScript**: 0 errors confirmed.
+- **Result files**: Updated to iteration 3 with accurate convention-fix notes.

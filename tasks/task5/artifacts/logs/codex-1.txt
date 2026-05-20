@@ -1,0 +1,1110 @@
+Reading additional input from stdin...
+OpenAI Codex v0.130.0
+--------
+workdir: /root/development/todo-app
+model: gpt-5.5
+provider: openai
+approval: never
+sandbox: read-only
+reasoning effort: none
+reasoning summaries: none
+session id: 019e4699-d756-7ba1-88fa-4a9f63dfb2b6
+--------
+user
+You are Codex reviewing a task implementation. Read the task spec (task5.md), what was built (task5-result.md), and the verify runner output above. Output tasks/task5/task5-review-feedback.md (human-readable notes) and tasks/task5/task5-review-feedback.json (machine-readable, strict schema). The json must contain: task_id, iteration, passed_review (bool), verify_exit_code (int), furthest_iteration (int), blocking_issues (array), non_blocking_notes (array), next_action (pass|retry|terminate).
+
+<stdin>
+# CONVENTIONS.md
+
+This file is the single source of truth for naming, structure, tooling, and behaviour rules across the entire project. It is passed as context to every Claude Code and Codex invocation.
+
+---
+
+## Naming
+
+- **Components**: PascalCase, one component per file.
+- **Files**: `kebab-case` for non-component files, `PascalCase` for component files.
+- **Test IDs**: `data-testid` attribute on every interactive and key display element, formatted as `kebab-case`.
+- **Context files**: Named `{Domain}Context.tsx`.
+- **Types**: Defined in `src/types/index.ts`.
+
+## Folder structure
+
+```
+todo-app/
+├── src/
+│   ├── components/        # Reusable UI components (PascalCase files)
+│   ├── context/           # React context providers ({Domain}Context.tsx)
+│   ├── hooks/             # Custom React hooks (useFoo.ts)
+│   ├── types/             # TypeScript type definitions (index.ts)
+│   ├── utils/             # Pure utility functions (kebab-case)
+│   ├── App.tsx            # Root application component
+│   └── main.tsx           # Entry point
+├── tests/                 # Playwright end-to-end tests
+├── tasks/                 # Task definitions and verification scripts
+├── public/                # Static assets
+├── package.json
+├── vite.config.ts
+├── tsconfig.json
+├── tailwind.config.js
+└── CONVENTIONS.md
+```
+
+## Error handling
+
+- Never swallow errors silently — always surface to the user or re-throw.
+- Use `try/catch` blocks around async operations with meaningful error messages.
+- Display user-facing errors in the UI; log developer-facing errors to console.
+- Do not use empty `catch {}` blocks.
+
+## Styling
+
+- **Tailwind CSS v3** is the only styling system.
+- No inline styles (`style={}` prop is forbidden).
+- No CSS Modules, no styled-components, no emotion, no other CSS-in-JS libraries.
+- Use Tailwind utility classes exclusively. Prefer composition over custom CSS.
+- When Tailwind utility classes are insufficient, use `@apply` in a CSS file — never fall back to inline styles.
+
+## Verification tooling
+
+- **Playwright** is the testing framework for end-to-end verification.
+- Tests use the `browser_app` protocol for browser automation.
+- Every interactive element and key display element must have a `data-testid` attribute.
+- Playwright tests must use explicit waits on element state (e.g., `locator.isEnabled()`, `locator.isVisible()`), never `waitForTimeout`.
+
+## Environment contract
+
+```json
+{
+  "setup_command": "npm install",
+  "dev_command": "npm run dev",
+  "verify_command": "npx playwright test",
+  "required_env_vars": []
+}
+```
+
+### Stack
+
+| Layer        | Technology                  |
+|-------------|-----------------------------|
+| Build       | Vite                        |
+| Framework   | React 18                    |
+| Language    | TypeScript (strict mode)    |
+| Routing     | react-router-dom v6         |
+| Styling     | Tailwind CSS v3             |
+| Dates       | date-fns                    |
+| State       | React context + useReducer   |
+| Storage     | localStorage only (no backend) |
+| Testing     | Playwright                   |
+
+## What Claude Code must never do
+
+1. **Install packages** not already declared in `package.json` unless the task's scope explicitly requires it.
+2. **Touch files** outside the task's declared `allowed_paths`.
+3. **Use inline styles** — all styling must go through Tailwind utility classes.
+4. **Mix styling systems** — no CSS Modules, no styled-components, no other CSS-in-JS.
+5. **Use the `any` type** in TypeScript — always define proper types or use `unknown`.
+6. **Swallow errors silently** — always surface to the user or re-throw.
+7. **Use `waitForTimeout`** in Playwright tests — use explicit waits on element state instead.
+# Task 5: Calendar View
+
+## Objective
+Build a monthly calendar page that plots active todos on their `workOnDate`. Clicking a date opens a side panel listing that day's todos sorted by effective priority for that specific day.
+
+## Scope
+- `getCalendarWeeks(year, month)` utility — returns a 2D array of `Date[][]` for the visible calendar grid
+- `getTodosForDate(todos, date)` utility — filters todos by `workOnDate`
+- `<CalendarGrid>` component — 7-column monthly grid with category dot indicators
+- `<DayPanel>` component — side panel showing todos for a selected date, priority-sorted for that day
+- Update `<CalendarPage>` with month navigation, today button, and grid + panel wiring
+
+## Out of scope
+- Completed todos are not shown in the calendar (filtering is covered here — active only)
+- No todo creation directly from the calendar grid dot (only from the DayPanel "+ Add" button)
+- Do not modify the data layer (context, reducer, types)
+- Do not modify DashboardPage
+
+## Acceptance criteria
+- [ ] `/calendar` renders `data-testid="calendar-grid"`
+- [ ] Calendar header shows the current month and year (e.g. "May 2026") in `data-testid="calendar-header"`
+- [ ] Clicking `data-testid="calendar-prev-btn"` shows the previous month
+- [ ] Clicking `data-testid="calendar-next-btn"` shows the next month
+- [ ] Clicking `data-testid="calendar-today-btn"` returns to the current month
+- [ ] Navigating from January backwards goes to December of the previous year (no crash)
+- [ ] Today's date cell contains `data-testid="calendar-day-today"`
+- [ ] A date cell with an active todo shows at least one `data-testid="calendar-day-dot"` element
+- [ ] A date cell with no todos shows zero `calendar-day-dot` elements
+- [ ] A completed todo's `workOnDate` cell shows no dot
+- [ ] Clicking a date cell opens `data-testid="day-panel"` showing that date
+- [ ] `data-testid="day-panel-date"` contains the formatted selected date
+- [ ] Todos in the panel are sorted by priority for the selected day (weekday/weekend rule applied to that date)
+- [ ] Clicking `data-testid="day-panel-close"` closes the panel
+- [ ] Clicking `data-testid="day-panel-add-btn"` opens `<TodoForm>` with `workOnDate` pre-filled to the selected date
+
+## Dependencies
+- task4 must be complete (PriorityBadge, sortTodosByPriority exported from utils)
+
+## File and folder targets
+- Create: `src/utils/calendar.ts`
+- Modify: `src/utils/index.ts`
+- Create: `src/components/CalendarGrid.tsx`
+- Create: `src/components/DayPanel.tsx`
+- Modify: `src/components/index.ts`
+- Modify: `src/pages/CalendarPage.tsx`
+- Do not touch: `src/pages/DashboardPage.tsx`
+- Do not touch: `src/context/`, `src/services/`, `src/types/`
+
+## Design constraints
+- Follow `CONVENTIONS.md` for naming and styling
+- Use `date-fns` for all date manipulation: `startOfMonth`, `endOfMonth`, `eachDayOfInterval`, `startOfWeek`, `endOfWeek`, `isSameDay`, `isSameMonth`, `isToday`, `format`
+- Calendar week starts on Monday (ISO week)
+- Cells outside the current month are rendered dimmed (`opacity-40` or `text-gray-300`)
+- `sortTodosByPriority` from `src/utils/priority.ts` must be called with the selected date as `referenceDate` in the DayPanel — not today's date
+- Each category dot colour: office=blue, personal=green, family=purple (match badge colours)
+- Maximum 3 dots shown per cell regardless of how many todos exist on that date
+
+### Required data-testid attributes
+| Element | data-testid |
+|---|---|
+| Calendar grid container | `calendar-grid` |
+| Month/year header | `calendar-header` |
+| Previous month button | `calendar-prev-btn` |
+| Next month button | `calendar-next-btn` |
+| Today button | `calendar-today-btn` |
+| Today's date cell | `calendar-day-today` |
+| Category dot in a cell | `calendar-day-dot` |
+| Day panel container | `day-panel` |
+| Date heading in panel | `day-panel-date` |
+| Close button | `day-panel-close` |
+| Add todo from panel | `day-panel-add-btn` |
+
+## Context
+The calendar view gives the founder a weekly and monthly perspective on their workload. The key behaviour is that clicking a date applies that date's priority rules (not today's), so a Saturday in the future correctly surfaces family todos at the top even when viewed on a weekday.
+# Task 5 Result: Calendar View
+
+## Status: implemented
+
+## Summary
+Built a full monthly calendar view at `/calendar` with month navigation, per-day todo dots, and a side panel showing priority-sorted todos for a selected date.
+
+## Files changed
+| File | Action |
+|---|---|
+| `src/utils/calendar.ts` | Created — `getCalendarWeeks` and `getTodosForDate` utilities |
+| `src/utils/index.ts` | Modified — re-exports the two new calendar utilities |
+| `src/components/CalendarGrid.tsx` | Created — 7-column monthly grid with dot indicators |
+| `src/components/DayPanel.tsx` | Created — side panel with priority-sorted todos and add/edit/delete |
+| `src/components/index.ts` | Modified — exports `CalendarGrid` and `DayPanel` |
+| `src/pages/CalendarPage.tsx` | Modified — full page with navigation, grid, and panel wiring |
+
+## Implementation notes
+
+### `getCalendarWeeks(year, month)`
+Uses `startOfWeek(monthStart, { weekStartsOn: 1 })` and `endOfWeek(monthEnd, { weekStartsOn: 1 })` to build a full ISO-week grid. Returns a 2D `Date[][]` array (4–6 weeks).
+
+### `getTodosForDate(todos, date)`
+Filters on `!t.completed && t.workOnDate === format(date, 'yyyy-MM-dd')`. String comparison sidesteps timezone issues.
+
+### CalendarGrid
+- Renders a sticky weekday header row (Mon–Sun) followed by all calendar day cells.
+- Today's cell gets `data-testid="calendar-day-today"` and a blue ring + blue circle on the day number.
+- Out-of-month cells are dimmed with `opacity-40`.
+- Up to 3 category dots (`data-testid="calendar-day-dot"`) per cell: office=blue, personal=green, family=purple.
+
+### DayPanel
+- Sorts received todos via `sortTodosByPriority(todos, date)` — uses the **selected** date as `referenceDate`, not today's date.
+- Renders `TodoCard` for each sorted todo, wired to context operations.
+- The "+ Add Todo" button opens a `Modal` containing `TodoForm` with `initialValues={{ workOnDate: dateStr }}` so the date is pre-filled.
+- Conditionally rendered in `CalendarPage` (unmounted when `selectedDate` is null).
+
+### CalendarPage
+- Two independent state slices: `viewDate` (month being viewed) and `selectedDate` (clicked day).
+- `subMonths`/`addMonths` from date-fns handle year-boundary wraparound correctly.
+- Navigation buttons: `calendar-prev-btn`, `calendar-next-btn`, `calendar-today-btn`.
+
+## Verification
+All 15 Playwright acceptance tests pass (0 failures):
+- Grid renders with correct header, today marker, and navigation
+- Prev/next/today navigation including January→December year wrap
+- Active todo dots appear; completed todo dots do not
+- Day panel opens/closes, shows correct date and todos
+- "+ Add Todo" pre-fills `workOnDate` to the selected date
+- Panel uses selected date for priority sorting
+
+## TypeScript errors: 0
+
+Running 15 tests using 1 worker
+
+  ✓   1 [chromium] › tasks/task5/task5-verify.spec.ts:39:3 › Task 5: Calendar View › calendar grid is visible (476ms)
+  ✓   2 [chromium] › tasks/task5/task5-verify.spec.ts:43:3 › Task 5: Calendar View › calendar header shows current month and year (448ms)
+  ✓   3 [chromium] › tasks/task5/task5-verify.spec.ts:47:3 › Task 5: Calendar View › today's cell has data-testid=calendar-day-today (419ms)
+  ✓   4 [chromium] › tasks/task5/task5-verify.spec.ts:53:3 › Task 5: Calendar View › prev button navigates to previous month (427ms)
+  ✓   5 [chromium] › tasks/task5/task5-verify.spec.ts:58:3 › Task 5: Calendar View › next button navigates to next month (483ms)
+  ✓   6 [chromium] › tasks/task5/task5-verify.spec.ts:63:3 › Task 5: Calendar View › today button returns to current month after navigating away (438ms)
+  ✓   7 [chromium] › tasks/task5/task5-verify.spec.ts:70:3 › Task 5: Calendar View › navigating from January goes to December of previous year without crash (972ms)
+  ✓   8 [chromium] › tasks/task5/task5-verify.spec.ts:89:3 › Task 5: Calendar View › date cell shows a dot when a todo has that workOnDate (477ms)
+  ✓   9 [chromium] › tasks/task5/task5-verify.spec.ts:103:3 › Task 5: Calendar View › completed todo does not show a dot (507ms)
+  ✓  10 [chromium] › tasks/task5/task5-verify.spec.ts:123:3 › Task 5: Calendar View › clicking today cell opens the day panel (419ms)
+  ✓  11 [chromium] › tasks/task5/task5-verify.spec.ts:128:3 › Task 5: Calendar View › day panel shows the selected date in day-panel-date (417ms)
+  ✓  12 [chromium] › tasks/task5/task5-verify.spec.ts:135:3 › Task 5: Calendar View › day panel close button hides the panel (458ms)
+  ✓  13 [chromium] › tasks/task5/task5-verify.spec.ts:142:3 › Task 5: Calendar View › day panel shows todos for that date (516ms)
+  ✓  14 [chromium] › tasks/task5/task5-verify.spec.ts:156:3 › Task 5: Calendar View › day-panel-add-btn opens TodoForm with workOnDate pre-filled (449ms)
+  ✓  15 [chromium] › tasks/task5/task5-verify.spec.ts:166:3 › Task 5: Calendar View › panel sorts todos by priority for the selected date (not today) (494ms)
+
+  15 passed (10.1s)
+</stdin>
+warning: Codex could not find bubblewrap on PATH. Install bubblewrap with your OS package manager. See the sandbox prerequisites: https://developers.openai.com/codex/concepts/sandboxing#prerequisites. Codex will use the bundled bubblewrap in the meantime.
+codex
+I’ll inspect the task files and implementation before writing the two review artifacts. Since the workspace is read-only in this session, I’ll verify whether output files can be created; if not, I’ll provide the exact contents.
+exec
+/bin/bash -lc "pwd && rg --files tasks src | sort | sed -n '1,160p'" in /root/development/todo-app
+ succeeded in 0ms:
+/root/development/todo-app
+src/App.tsx
+src/components/CalendarGrid.tsx
+src/components/DayPanel.tsx
+src/components/Layout.tsx
+src/components/Modal.tsx
+src/components/PriorityBadge.tsx
+src/components/TodoCard.tsx
+src/components/TodoForm.tsx
+src/components/TodoList.tsx
+src/components/index.ts
+src/context/TodoContext.tsx
+src/context/index.ts
+src/context/todoReducer.ts
+src/hooks/index.ts
+src/index.css
+src/main.tsx
+src/pages/CalendarPage.tsx
+src/pages/CompletedPage.tsx
+src/pages/DashboardPage.tsx
+src/pages/index.ts
+src/services/index.ts
+src/services/todoStorage.ts
+src/types/index.ts
+src/utils/calendar.ts
+src/utils/generateId.ts
+src/utils/index.ts
+src/utils/priority.ts
+src/vite-env.d.ts
+tasks/task1/artifacts/logs/codex-1.txt
+tasks/task1/artifacts/logs/loop-1.txt
+tasks/task1/artifacts/verify-output.txt
+tasks/task1/task1-assumptions.md
+tasks/task1/task1-result.json
+tasks/task1/task1-result.md
+tasks/task1/task1-review-feedback.json
+tasks/task1/task1-verify.spec.ts
+tasks/task1/task1.manifest.json
+tasks/task1/task1.md
+tasks/task2/artifacts/logs/codex-1.txt
+tasks/task2/artifacts/logs/loop-1.txt
+tasks/task2/artifacts/logs/loop-2.txt
+tasks/task2/artifacts/verify-output.txt
+tasks/task2/task2-assumptions.md
+tasks/task2/task2-result.json
+tasks/task2/task2-result.md
+tasks/task2/task2-review-feedback.json
+tasks/task2/task2-review-feedback.md
+tasks/task2/task2-verify.spec.ts
+tasks/task2/task2.manifest.json
+tasks/task2/task2.md
+tasks/task3/artifacts/logs/codex-1.txt
+tasks/task3/artifacts/logs/codex-2.txt
+tasks/task3/artifacts/logs/loop-1.txt
+tasks/task3/artifacts/logs/loop-2.txt
+tasks/task3/artifacts/verify-output.txt
+tasks/task3/task3-assumptions.md
+tasks/task3/task3-result.json
+tasks/task3/task3-result.md
+tasks/task3/task3-review-feedback.json
+tasks/task3/task3-review-feedback.md
+tasks/task3/task3-verify.spec.ts
+tasks/task3/task3.manifest.json
+tasks/task3/task3.md
+tasks/task4/artifacts/logs/codex-1.txt
+tasks/task4/artifacts/logs/loop-1.txt
+tasks/task4/artifacts/verify-output.txt
+tasks/task4/task4-assumptions.md
+tasks/task4/task4-result.json
+tasks/task4/task4-result.md
+tasks/task4/task4-review-feedback.json
+tasks/task4/task4-review-feedback.md
+tasks/task4/task4-verify.spec.ts
+tasks/task4/task4.manifest.json
+tasks/task4/task4.md
+tasks/task5/artifacts/logs/codex-1.txt
+tasks/task5/artifacts/logs/loop-1.txt
+tasks/task5/artifacts/verify-output.txt
+tasks/task5/task5-assumptions.md
+tasks/task5/task5-result.json
+tasks/task5/task5-result.md
+tasks/task5/task5-verify.spec.ts
+tasks/task5/task5.manifest.json
+tasks/task5/task5.md
+tasks/task6/task6-verify.spec.ts
+tasks/task6/task6.manifest.json
+tasks/task6/task6.md
+
+exec
+/bin/bash -lc "sed -n '1,220p' tasks/task5/task5.md" in /root/development/todo-app
+ succeeded in 0ms:
+# Task 5: Calendar View
+
+## Objective
+Build a monthly calendar page that plots active todos on their `workOnDate`. Clicking a date opens a side panel listing that day's todos sorted by effective priority for that specific day.
+
+## Scope
+- `getCalendarWeeks(year, month)` utility — returns a 2D array of `Date[][]` for the visible calendar grid
+- `getTodosForDate(todos, date)` utility — filters todos by `workOnDate`
+- `<CalendarGrid>` component — 7-column monthly grid with category dot indicators
+- `<DayPanel>` component — side panel showing todos for a selected date, priority-sorted for that day
+- Update `<CalendarPage>` with month navigation, today button, and grid + panel wiring
+
+## Out of scope
+- Completed todos are not shown in the calendar (filtering is covered here — active only)
+- No todo creation directly from the calendar grid dot (only from the DayPanel "+ Add" button)
+- Do not modify the data layer (context, reducer, types)
+- Do not modify DashboardPage
+
+## Acceptance criteria
+- [ ] `/calendar` renders `data-testid="calendar-grid"`
+- [ ] Calendar header shows the current month and year (e.g. "May 2026") in `data-testid="calendar-header"`
+- [ ] Clicking `data-testid="calendar-prev-btn"` shows the previous month
+- [ ] Clicking `data-testid="calendar-next-btn"` shows the next month
+- [ ] Clicking `data-testid="calendar-today-btn"` returns to the current month
+- [ ] Navigating from January backwards goes to December of the previous year (no crash)
+- [ ] Today's date cell contains `data-testid="calendar-day-today"`
+- [ ] A date cell with an active todo shows at least one `data-testid="calendar-day-dot"` element
+- [ ] A date cell with no todos shows zero `calendar-day-dot` elements
+- [ ] A completed todo's `workOnDate` cell shows no dot
+- [ ] Clicking a date cell opens `data-testid="day-panel"` showing that date
+- [ ] `data-testid="day-panel-date"` contains the formatted selected date
+- [ ] Todos in the panel are sorted by priority for the selected day (weekday/weekend rule applied to that date)
+- [ ] Clicking `data-testid="day-panel-close"` closes the panel
+- [ ] Clicking `data-testid="day-panel-add-btn"` opens `<TodoForm>` with `workOnDate` pre-filled to the selected date
+
+## Dependencies
+- task4 must be complete (PriorityBadge, sortTodosByPriority exported from utils)
+
+## File and folder targets
+- Create: `src/utils/calendar.ts`
+- Modify: `src/utils/index.ts`
+- Create: `src/components/CalendarGrid.tsx`
+- Create: `src/components/DayPanel.tsx`
+- Modify: `src/components/index.ts`
+- Modify: `src/pages/CalendarPage.tsx`
+- Do not touch: `src/pages/DashboardPage.tsx`
+- Do not touch: `src/context/`, `src/services/`, `src/types/`
+
+## Design constraints
+- Follow `CONVENTIONS.md` for naming and styling
+- Use `date-fns` for all date manipulation: `startOfMonth`, `endOfMonth`, `eachDayOfInterval`, `startOfWeek`, `endOfWeek`, `isSameDay`, `isSameMonth`, `isToday`, `format`
+- Calendar week starts on Monday (ISO week)
+- Cells outside the current month are rendered dimmed (`opacity-40` or `text-gray-300`)
+- `sortTodosByPriority` from `src/utils/priority.ts` must be called with the selected date as `referenceDate` in the DayPanel — not today's date
+- Each category dot colour: office=blue, personal=green, family=purple (match badge colours)
+- Maximum 3 dots shown per cell regardless of how many todos exist on that date
+
+### Required data-testid attributes
+| Element | data-testid |
+|---|---|
+| Calendar grid container | `calendar-grid` |
+| Month/year header | `calendar-header` |
+| Previous month button | `calendar-prev-btn` |
+| Next month button | `calendar-next-btn` |
+| Today button | `calendar-today-btn` |
+| Today's date cell | `calendar-day-today` |
+| Category dot in a cell | `calendar-day-dot` |
+| Day panel container | `day-panel` |
+| Date heading in panel | `day-panel-date` |
+| Close button | `day-panel-close` |
+| Add todo from panel | `day-panel-add-btn` |
+
+## Context
+The calendar view gives the founder a weekly and monthly perspective on their workload. The key behaviour is that clicking a date applies that date's priority rules (not today's), so a Saturday in the future correctly surfaces family todos at the top even when viewed on a weekday.
+
+exec
+/bin/bash -lc "sed -n '1,240p' tasks/task5/task5-result.md" in /root/development/todo-app
+ succeeded in 0ms:
+# Task 5 Result: Calendar View
+
+## Status: implemented
+
+## Summary
+Built a full monthly calendar view at `/calendar` with month navigation, per-day todo dots, and a side panel showing priority-sorted todos for a selected date.
+
+## Files changed
+| File | Action |
+|---|---|
+| `src/utils/calendar.ts` | Created — `getCalendarWeeks` and `getTodosForDate` utilities |
+| `src/utils/index.ts` | Modified — re-exports the two new calendar utilities |
+| `src/components/CalendarGrid.tsx` | Created — 7-column monthly grid with dot indicators |
+| `src/components/DayPanel.tsx` | Created — side panel with priority-sorted todos and add/edit/delete |
+| `src/components/index.ts` | Modified — exports `CalendarGrid` and `DayPanel` |
+| `src/pages/CalendarPage.tsx` | Modified — full page with navigation, grid, and panel wiring |
+
+## Implementation notes
+
+### `getCalendarWeeks(year, month)`
+Uses `startOfWeek(monthStart, { weekStartsOn: 1 })` and `endOfWeek(monthEnd, { weekStartsOn: 1 })` to build a full ISO-week grid. Returns a 2D `Date[][]` array (4–6 weeks).
+
+### `getTodosForDate(todos, date)`
+Filters on `!t.completed && t.workOnDate === format(date, 'yyyy-MM-dd')`. String comparison sidesteps timezone issues.
+
+### CalendarGrid
+- Renders a sticky weekday header row (Mon–Sun) followed by all calendar day cells.
+- Today's cell gets `data-testid="calendar-day-today"` and a blue ring + blue circle on the day number.
+- Out-of-month cells are dimmed with `opacity-40`.
+- Up to 3 category dots (`data-testid="calendar-day-dot"`) per cell: office=blue, personal=green, family=purple.
+
+### DayPanel
+- Sorts received todos via `sortTodosByPriority(todos, date)` — uses the **selected** date as `referenceDate`, not today's date.
+- Renders `TodoCard` for each sorted todo, wired to context operations.
+- The "+ Add Todo" button opens a `Modal` containing `TodoForm` with `initialValues={{ workOnDate: dateStr }}` so the date is pre-filled.
+- Conditionally rendered in `CalendarPage` (unmounted when `selectedDate` is null).
+
+### CalendarPage
+- Two independent state slices: `viewDate` (month being viewed) and `selectedDate` (clicked day).
+- `subMonths`/`addMonths` from date-fns handle year-boundary wraparound correctly.
+- Navigation buttons: `calendar-prev-btn`, `calendar-next-btn`, `calendar-today-btn`.
+
+## Verification
+All 15 Playwright acceptance tests pass (0 failures):
+- Grid renders with correct header, today marker, and navigation
+- Prev/next/today navigation including January→December year wrap
+- Active todo dots appear; completed todo dots do not
+- Day panel opens/closes, shows correct date and todos
+- "+ Add Todo" pre-fills `workOnDate` to the selected date
+- Panel uses selected date for priority sorting
+
+## TypeScript errors: 0
+
+codex
+The spec and result line up at a high level. I’m reading the actual changed files now to catch issues that the acceptance runner may not cover, especially scope violations and date/priority behavior.
+exec
+/bin/bash -lc "sed -n '1,240p' src/utils/calendar.ts" in /root/development/todo-app
+ succeeded in 0ms:
+import {
+  format,
+  startOfMonth,
+  endOfMonth,
+  startOfWeek,
+  endOfWeek,
+  eachDayOfInterval,
+} from 'date-fns';
+import type { Todo } from '../types';
+
+export function getCalendarWeeks(year: number, month: number): Date[][] {
+  const monthStart = startOfMonth(new Date(year, month));
+  const monthEnd = endOfMonth(new Date(year, month));
+  const gridStart = startOfWeek(monthStart, { weekStartsOn: 1 });
+  const gridEnd = endOfWeek(monthEnd, { weekStartsOn: 1 });
+  const days = eachDayOfInterval({ start: gridStart, end: gridEnd });
+
+  const weeks: Date[][] = [];
+  for (let i = 0; i < days.length; i += 7) {
+    weeks.push(days.slice(i, i + 7));
+  }
+  return weeks;
+}
+
+export function getTodosForDate(todos: Todo[], date: Date): Todo[] {
+  const dateStr = format(date, 'yyyy-MM-dd');
+  return todos.filter((t) => !t.completed && t.workOnDate === dateStr);
+}
+
+exec
+/bin/bash -lc "sed -n '1,280p' src/components/CalendarGrid.tsx" in /root/development/todo-app
+ succeeded in 0ms:
+import { format, isSameDay, isSameMonth, isToday } from 'date-fns';
+import type { Category, Todo } from '../types';
+import { getCalendarWeeks, getTodosForDate } from '../utils';
+
+const DOT_COLOR: Record<Category, string> = {
+  office: 'bg-blue-500',
+  personal: 'bg-green-500',
+  family: 'bg-purple-500',
+};
+
+const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+
+interface CalendarGridProps {
+  year: number;
+  month: number;
+  todos: Todo[];
+  selectedDate: Date | null;
+  onDayClick: (date: Date) => void;
+}
+
+export default function CalendarGrid({ year, month, todos, selectedDate, onDayClick }: CalendarGridProps) {
+  const weeks = getCalendarWeeks(year, month);
+  const currentMonth = new Date(year, month);
+
+  return (
+    <div data-testid="calendar-grid" className="w-full border border-gray-200 rounded-lg overflow-hidden">
+      <div className="grid grid-cols-7 bg-gray-50 border-b border-gray-200">
+        {WEEKDAYS.map((day) => (
+          <div key={day} className="py-2 text-center text-xs font-semibold text-gray-500 uppercase">
+            {day}
+          </div>
+        ))}
+      </div>
+
+      <div className="grid grid-cols-7">
+        {weeks.flat().map((date) => {
+          const key = format(date, 'yyyy-MM-dd');
+          const inMonth = isSameMonth(date, currentMonth);
+          const todayCell = isToday(date);
+          const isSelected = selectedDate ? isSameDay(date, selectedDate) : false;
+          const dayTodos = getTodosForDate(todos, date);
+          const dots = dayTodos.slice(0, 3);
+
+          return (
+            <div
+              key={key}
+              data-testid={todayCell ? 'calendar-day-today' : undefined}
+              onClick={() => onDayClick(date)}
+              className={`min-h-[80px] p-2 border-b border-r border-gray-100 cursor-pointer transition-colors ${
+                inMonth ? '' : 'opacity-40'
+              } ${isSelected ? 'bg-blue-50' : 'hover:bg-gray-50'} ${
+                todayCell ? 'ring-2 ring-inset ring-blue-400' : ''
+              }`}
+            >
+              <span
+                className={`inline-flex items-center justify-center w-7 h-7 text-sm font-medium rounded-full ${
+                  todayCell ? 'bg-blue-500 text-white' : 'text-gray-700'
+                }`}
+              >
+                {date.getDate()}
+              </span>
+
+              {dots.length > 0 && (
+                <div className="flex gap-1 mt-1 flex-wrap">
+                  {dots.map((todo, i) => (
+                    <span
+                      key={i}
+                      data-testid="calendar-day-dot"
+                      className={`w-2 h-2 rounded-full ${DOT_COLOR[todo.category]}`}
+                    />
+                  ))}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+exec
+/bin/bash -lc "sed -n '1,280p' src/pages/CalendarPage.tsx" in /root/development/todo-app
+ succeeded in 0ms:
+import { useState } from 'react';
+import { format, addMonths, subMonths } from 'date-fns';
+import { useTodos } from '../context';
+import CalendarGrid from '../components/CalendarGrid';
+import DayPanel from '../components/DayPanel';
+import { getTodosForDate } from '../utils';
+
+export default function CalendarPage() {
+  const { todos } = useTodos();
+  const [viewDate, setViewDate] = useState(new Date());
+  const [selectedDate, setSelectedDate] = useState<Date | null>(null);
+
+  const year = viewDate.getFullYear();
+  const month = viewDate.getMonth();
+
+  function goToPrev() {
+    setViewDate((d) => subMonths(d, 1));
+  }
+
+  function goToNext() {
+    setViewDate((d) => addMonths(d, 1));
+  }
+
+  function goToToday() {
+    setViewDate(new Date());
+  }
+
+  function handleDayClick(date: Date) {
+    setSelectedDate(date);
+  }
+
+  function handleClosePanel() {
+    setSelectedDate(null);
+  }
+
+  const panelTodos = selectedDate ? getTodosForDate(todos, selectedDate) : [];
+
+  return (
+    <main data-testid="page-calendar" className="p-6 flex flex-col">
+      <div className="flex items-center gap-3 mb-4">
+        <button
+          data-testid="calendar-prev-btn"
+          onClick={goToPrev}
+          className="px-3 py-1.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50"
+        >
+          ‹
+        </button>
+        <h1
+          data-testid="calendar-header"
+          className="text-xl font-bold text-gray-900 min-w-[160px] text-center"
+        >
+          {format(viewDate, 'MMMM yyyy')}
+        </h1>
+        <button
+          data-testid="calendar-next-btn"
+          onClick={goToNext}
+          className="px-3 py-1.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50"
+        >
+          ›
+        </button>
+        <button
+          data-testid="calendar-today-btn"
+          onClick={goToToday}
+          className="ml-2 px-3 py-1.5 text-sm font-medium text-blue-600 bg-blue-50 border border-blue-200 rounded-md hover:bg-blue-100"
+        >
+          Today
+        </button>
+      </div>
+
+      <div className="flex gap-4">
+        <div className="flex-1">
+          <CalendarGrid
+            year={year}
+            month={month}
+            todos={todos}
+            selectedDate={selectedDate}
+            onDayClick={handleDayClick}
+          />
+        </div>
+
+        {selectedDate && (
+          <DayPanel
+            date={selectedDate}
+            todos={panelTodos}
+            onClose={handleClosePanel}
+          />
+        )}
+      </div>
+    </main>
+  );
+}
+
+exec
+/bin/bash -lc "sed -n '1,320p' src/components/DayPanel.tsx" in /root/development/todo-app
+ succeeded in 0ms:
+import { useState } from 'react';
+import { format } from 'date-fns';
+import type { Todo } from '../types';
+import { sortTodosByPriority } from '../utils';
+import { useTodos } from '../context';
+import TodoCard from './TodoCard';
+import TodoForm from './TodoForm';
+import Modal from './Modal';
+
+type AddTodoInput = Omit<Todo, 'id' | 'completed' | 'completedAt' | 'createdAt' | 'updatedAt'>;
+
+interface DayPanelProps {
+  date: Date;
+  todos: Todo[];
+  onClose: () => void;
+}
+
+export default function DayPanel({ date, todos, onClose }: DayPanelProps) {
+  const { addTodo, updateTodo, deleteTodo, toggleComplete } = useTodos();
+  const [isFormOpen, setIsFormOpen] = useState(false);
+  const [editingTodo, setEditingTodo] = useState<Todo | null>(null);
+
+  const sortedTodos = sortTodosByPriority(todos, date);
+  const dateStr = format(date, 'yyyy-MM-dd');
+
+  function handleAddClick() {
+    setEditingTodo(null);
+    setIsFormOpen(true);
+  }
+
+  function handleEditTodo(todo: Todo) {
+    setEditingTodo(todo);
+    setIsFormOpen(true);
+  }
+
+  function handleFormClose() {
+    setIsFormOpen(false);
+    setEditingTodo(null);
+  }
+
+  function handleFormSubmit(values: AddTodoInput) {
+    if (editingTodo) {
+      updateTodo({ ...editingTodo, ...values });
+    } else {
+      addTodo(values);
+    }
+    handleFormClose();
+  }
+
+  return (
+    <>
+      <div
+        data-testid="day-panel"
+        className="w-80 border-l border-gray-200 bg-white flex flex-col"
+        style={{ minHeight: 0 }}
+      >
+        <div className="flex items-center justify-between p-4 border-b border-gray-200">
+          <h2 data-testid="day-panel-date" className="text-base font-semibold text-gray-900 leading-tight">
+            {format(date, 'EEEE, MMMM d, yyyy')}
+          </h2>
+          <button
+            data-testid="day-panel-close"
+            onClick={onClose}
+            className="ml-2 p-1 text-gray-400 hover:text-gray-600 rounded shrink-0"
+          >
+            ✕
+          </button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto p-4 space-y-3">
+          {sortedTodos.length === 0 ? (
+            <p className="text-sm text-gray-500">No todos scheduled for this day.</p>
+          ) : (
+            sortedTodos.map((todo) => (
+              <TodoCard
+                key={todo.id}
+                todo={todo}
+                onEdit={handleEditTodo}
+                onDelete={deleteTodo}
+                onToggleComplete={toggleComplete}
+              />
+            ))
+          )}
+        </div>
+
+        <div className="p-4 border-t border-gray-200">
+          <button
+            data-testid="day-panel-add-btn"
+            onClick={handleAddClick}
+            className="w-full px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700"
+          >
+            + Add Todo
+          </button>
+        </div>
+      </div>
+
+      <Modal isOpen={isFormOpen} onClose={handleFormClose}>
+        <h2 className="text-lg font-semibold text-gray-900 mb-4">
+          {editingTodo ? 'Edit Todo' : 'New Todo'}
+        </h2>
+        <TodoForm
+          key={editingTodo?.id ?? 'new'}
+          initialValues={editingTodo ?? { workOnDate: dateStr }}
+          onSubmit={handleFormSubmit}
+          onCancel={handleFormClose}
+        />
+      </Modal>
+    </>
+  );
+}
+
+codex
+One issue surfaced: `DayPanel` uses an inline `style` prop, which violates the project styling convention even though the verification tests pass. I’m checking the diff and line numbers so the feedback is precise.
+exec
+/bin/bash -lc 'git status --short' in /root/development/todo-app
+ succeeded in 0ms:
+ M src/components/index.ts
+ M src/pages/CalendarPage.tsx
+ M src/utils/index.ts
+?? src/components/CalendarGrid.tsx
+?? src/components/DayPanel.tsx
+?? src/utils/calendar.ts
+?? tasks/task5/artifacts/logs/
+?? tasks/task5/artifacts/verify-output.txt
+?? tasks/task5/task5-assumptions.md
+?? tasks/task5/task5-result.json
+?? tasks/task5/task5-result.md
+
+exec
+/bin/bash -lc "sed -n '1,160p' tasks/task4/task4-review-feedback.json" in /root/development/todo-app
+ succeeded in 0ms:
+{
+  "task_id": "task4",
+  "iteration": 1,
+  "passed_review": true,
+  "verify_exit_code": 0,
+  "furthest_iteration": 1,
+  "blocking_issues": [],
+  "non_blocking_notes": [
+    "Verifier passed all 13 Task 4 checks.",
+    "Implementation uses date-fns isWeekend and preserves optional referenceDate support for both priority utilities.",
+    "Dashboard sorts by priority weight and dueDate, and displays the required priority mode banner.",
+    "No forbidden data-layer or excluded component changes were found during review."
+  ],
+  "next_action": "pass"
+}
+
+exec
+/bin/bash -lc "nl -ba src/components/DayPanel.tsx | sed -n '1,140p'" in /root/development/todo-app
+ succeeded in 0ms:
+     1	import { useState } from 'react';
+     2	import { format } from 'date-fns';
+     3	import type { Todo } from '../types';
+     4	import { sortTodosByPriority } from '../utils';
+     5	import { useTodos } from '../context';
+     6	import TodoCard from './TodoCard';
+     7	import TodoForm from './TodoForm';
+     8	import Modal from './Modal';
+     9	
+    10	type AddTodoInput = Omit<Todo, 'id' | 'completed' | 'completedAt' | 'createdAt' | 'updatedAt'>;
+    11	
+    12	interface DayPanelProps {
+    13	  date: Date;
+    14	  todos: Todo[];
+    15	  onClose: () => void;
+    16	}
+    17	
+    18	export default function DayPanel({ date, todos, onClose }: DayPanelProps) {
+    19	  const { addTodo, updateTodo, deleteTodo, toggleComplete } = useTodos();
+    20	  const [isFormOpen, setIsFormOpen] = useState(false);
+    21	  const [editingTodo, setEditingTodo] = useState<Todo | null>(null);
+    22	
+    23	  const sortedTodos = sortTodosByPriority(todos, date);
+    24	  const dateStr = format(date, 'yyyy-MM-dd');
+    25	
+    26	  function handleAddClick() {
+    27	    setEditingTodo(null);
+    28	    setIsFormOpen(true);
+    29	  }
+    30	
+    31	  function handleEditTodo(todo: Todo) {
+    32	    setEditingTodo(todo);
+    33	    setIsFormOpen(true);
+    34	  }
+    35	
+    36	  function handleFormClose() {
+    37	    setIsFormOpen(false);
+    38	    setEditingTodo(null);
+    39	  }
+    40	
+    41	  function handleFormSubmit(values: AddTodoInput) {
+    42	    if (editingTodo) {
+    43	      updateTodo({ ...editingTodo, ...values });
+    44	    } else {
+    45	      addTodo(values);
+    46	    }
+    47	    handleFormClose();
+    48	  }
+    49	
+    50	  return (
+    51	    <>
+    52	      <div
+    53	        data-testid="day-panel"
+    54	        className="w-80 border-l border-gray-200 bg-white flex flex-col"
+    55	        style={{ minHeight: 0 }}
+    56	      >
+    57	        <div className="flex items-center justify-between p-4 border-b border-gray-200">
+    58	          <h2 data-testid="day-panel-date" className="text-base font-semibold text-gray-900 leading-tight">
+    59	            {format(date, 'EEEE, MMMM d, yyyy')}
+    60	          </h2>
+    61	          <button
+    62	            data-testid="day-panel-close"
+    63	            onClick={onClose}
+    64	            className="ml-2 p-1 text-gray-400 hover:text-gray-600 rounded shrink-0"
+    65	          >
+    66	            ✕
+    67	          </button>
+    68	        </div>
+    69	
+    70	        <div className="flex-1 overflow-y-auto p-4 space-y-3">
+    71	          {sortedTodos.length === 0 ? (
+    72	            <p className="text-sm text-gray-500">No todos scheduled for this day.</p>
+    73	          ) : (
+    74	            sortedTodos.map((todo) => (
+    75	              <TodoCard
+    76	                key={todo.id}
+    77	                todo={todo}
+    78	                onEdit={handleEditTodo}
+    79	                onDelete={deleteTodo}
+    80	                onToggleComplete={toggleComplete}
+    81	              />
+    82	            ))
+    83	          )}
+    84	        </div>
+    85	
+    86	        <div className="p-4 border-t border-gray-200">
+    87	          <button
+    88	            data-testid="day-panel-add-btn"
+    89	            onClick={handleAddClick}
+    90	            className="w-full px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700"
+    91	          >
+    92	            + Add Todo
+    93	          </button>
+    94	        </div>
+    95	      </div>
+    96	
+    97	      <Modal isOpen={isFormOpen} onClose={handleFormClose}>
+    98	        <h2 className="text-lg font-semibold text-gray-900 mb-4">
+    99	          {editingTodo ? 'Edit Todo' : 'New Todo'}
+   100	        </h2>
+   101	        <TodoForm
+   102	          key={editingTodo?.id ?? 'new'}
+   103	          initialValues={editingTodo ?? { workOnDate: dateStr }}
+   104	          onSubmit={handleFormSubmit}
+   105	          onCancel={handleFormClose}
+   106	        />
+   107	      </Modal>
+   108	    </>
+   109	  );
+   110	}
+
+exec
+/bin/bash -lc 'cat tasks/task5/artifacts/verify-output.txt' in /root/development/todo-app
+ succeeded in 0ms:
+
+Running 15 tests using 1 worker
+
+  ✓   1 [chromium] › tasks/task5/task5-verify.spec.ts:39:3 › Task 5: Calendar View › calendar grid is visible (476ms)
+  ✓   2 [chromium] › tasks/task5/task5-verify.spec.ts:43:3 › Task 5: Calendar View › calendar header shows current month and year (448ms)
+  ✓   3 [chromium] › tasks/task5/task5-verify.spec.ts:47:3 › Task 5: Calendar View › today's cell has data-testid=calendar-day-today (419ms)
+  ✓   4 [chromium] › tasks/task5/task5-verify.spec.ts:53:3 › Task 5: Calendar View › prev button navigates to previous month (427ms)
+  ✓   5 [chromium] › tasks/task5/task5-verify.spec.ts:58:3 › Task 5: Calendar View › next button navigates to next month (483ms)
+  ✓   6 [chromium] › tasks/task5/task5-verify.spec.ts:63:3 › Task 5: Calendar View › today button returns to current month after navigating away (438ms)
+  ✓   7 [chromium] › tasks/task5/task5-verify.spec.ts:70:3 › Task 5: Calendar View › navigating from January goes to December of previous year without crash (972ms)
+  ✓   8 [chromium] › tasks/task5/task5-verify.spec.ts:89:3 › Task 5: Calendar View › date cell shows a dot when a todo has that workOnDate (477ms)
+  ✓   9 [chromium] › tasks/task5/task5-verify.spec.ts:103:3 › Task 5: Calendar View › completed todo does not show a dot (507ms)
+  ✓  10 [chromium] › tasks/task5/task5-verify.spec.ts:123:3 › Task 5: Calendar View › clicking today cell opens the day panel (419ms)
+  ✓  11 [chromium] › tasks/task5/task5-verify.spec.ts:128:3 › Task 5: Calendar View › day panel shows the selected date in day-panel-date (417ms)
+  ✓  12 [chromium] › tasks/task5/task5-verify.spec.ts:135:3 › Task 5: Calendar View › day panel close button hides the panel (458ms)
+  ✓  13 [chromium] › tasks/task5/task5-verify.spec.ts:142:3 › Task 5: Calendar View › day panel shows todos for that date (516ms)
+  ✓  14 [chromium] › tasks/task5/task5-verify.spec.ts:156:3 › Task 5: Calendar View › day-panel-add-btn opens TodoForm with workOnDate pre-filled (449ms)
+  ✓  15 [chromium] › tasks/task5/task5-verify.spec.ts:166:3 › Task 5: Calendar View › panel sorts todos by priority for the selected date (not today) (494ms)
+
+  15 passed (10.1s)
+
+codex
+The review outcome should be a retry, not a pass: functionality is covered by the verifier, but the inline style is a convention violation from the task’s design constraints. I’m going to write the review files now; if the sandbox blocks the write, I’ll include their contents in the final response.
+2026-05-20T18:16:25.222251Z ERROR codex_core::tools::router: error=patch rejected: writing is blocked by read-only sandbox; rejected by user approval settings
+codex
+I could not write the files because this session is running with a read-only filesystem and approval is disabled. Here are the exact contents to place in the two files.
+
+[tasks/task5/task5-review-feedback.md](/root/development/todo-app/tasks/task5/task5-review-feedback.md):
+
+```md
+# Task 5 Review Feedback
+
+## Review Result
+Retry required.
+
+The Playwright verification for Task 5 passed all 15 acceptance checks with exit code 0. The implementation covers the calendar grid, month navigation, active-only todo dots, day panel behavior, selected-date priority sorting, and add-todo prefill behavior.
+
+## Blocking Issues
+
+1. `src/components/DayPanel.tsx:55` uses an inline `style` prop:
+
+   ```tsx
+   style={{ minHeight: 0 }}
+   ```
+
+   This violates `CONVENTIONS.md`, which forbids inline styles and requires Tailwind CSS utilities. Replace this with the equivalent Tailwind utility, for example by adding `min-h-0` to the existing `className`.
+
+## Non-Blocking Notes
+
+- Verifier passed all 15 Task 5 checks.
+- `sortTodosByPriority` is called with the selected day as the reference date in `DayPanel`, satisfying the key priority behavior.
+- `getTodosForDate` filters completed todos out of the calendar and panel.
+- The touched source files appear limited to the Task 5 allowed implementation areas.
+
+## Next Action
+
+Retry after removing the inline style from `DayPanel`.
+```
+
+[tasks/task5/task5-review-feedback.json](/root/development/todo-app/tasks/task5/task5-review-feedback.json):
+
+```json
+{
+  "task_id": "task5",
+  "iteration": 1,
+  "passed_review": false,
+  "verify_exit_code": 0,
+  "furthest_iteration": 1,
+  "blocking_issues": [
+    {
+      "file": "src/components/DayPanel.tsx",
+      "line": 55,
+      "issue": "Inline style prop is used for minHeight, violating CONVENTIONS.md and the Task 5 styling constraint that Tailwind CSS utilities must be used instead of inline styles.",
+      "required_fix": "Replace style={{ minHeight: 0 }} with a Tailwind utility such as min-h-0 on the day-panel container className."
+    }
+  ],
+  "non_blocking_notes": [
+    "Verifier passed all 15 Task 5 checks.",
+    "Calendar grid, month navigation, today navigation, year-boundary navigation, active todo dots, completed todo filtering, panel open/close, and add-todo prefill behavior are covered by passing verification.",
+    "DayPanel calls sortTodosByPriority with the selected date as the reference date.",
+    "Task 5 source changes appear limited to the allowed implementation areas."
+  ],
+  "next_action": "retry"
+}
+```
+tokens used
+16,663
+I could not write the files because this session is running with a read-only filesystem and approval is disabled. Here are the exact contents to place in the two files.
+
+[tasks/task5/task5-review-feedback.md](/root/development/todo-app/tasks/task5/task5-review-feedback.md):
+
+```md
+# Task 5 Review Feedback
+
+## Review Result
+Retry required.
+
+The Playwright verification for Task 5 passed all 15 acceptance checks with exit code 0. The implementation covers the calendar grid, month navigation, active-only todo dots, day panel behavior, selected-date priority sorting, and add-todo prefill behavior.
+
+## Blocking Issues
+
+1. `src/components/DayPanel.tsx:55` uses an inline `style` prop:
+
+   ```tsx
+   style={{ minHeight: 0 }}
+   ```
+
+   This violates `CONVENTIONS.md`, which forbids inline styles and requires Tailwind CSS utilities. Replace this with the equivalent Tailwind utility, for example by adding `min-h-0` to the existing `className`.
+
+## Non-Blocking Notes
+
+- Verifier passed all 15 Task 5 checks.
+- `sortTodosByPriority` is called with the selected day as the reference date in `DayPanel`, satisfying the key priority behavior.
+- `getTodosForDate` filters completed todos out of the calendar and panel.
+- The touched source files appear limited to the Task 5 allowed implementation areas.
+
+## Next Action
+
+Retry after removing the inline style from `DayPanel`.
+```
+
+[tasks/task5/task5-review-feedback.json](/root/development/todo-app/tasks/task5/task5-review-feedback.json):
+
+```json
+{
+  "task_id": "task5",
+  "iteration": 1,
+  "passed_review": false,
+  "verify_exit_code": 0,
+  "furthest_iteration": 1,
+  "blocking_issues": [
+    {
+      "file": "src/components/DayPanel.tsx",
+      "line": 55,
+      "issue": "Inline style prop is used for minHeight, violating CONVENTIONS.md and the Task 5 styling constraint that Tailwind CSS utilities must be used instead of inline styles.",
+      "required_fix": "Replace style={{ minHeight: 0 }} with a Tailwind utility such as min-h-0 on the day-panel container className."
+    }
+  ],
+  "non_blocking_notes": [
+    "Verifier passed all 15 Task 5 checks.",
+    "Calendar grid, month navigation, today navigation, year-boundary navigation, active todo dots, completed todo filtering, panel open/close, and add-todo prefill behavior are covered by passing verification.",
+    "DayPanel calls sortTodosByPriority with the selected date as the reference date.",
+    "Task 5 source changes appear limited to the allowed implementation areas."
+  ],
+  "next_action": "retry"
+}
+```
