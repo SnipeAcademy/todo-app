@@ -36,9 +36,6 @@ Initialise a Vite + React + TypeScript + Tailwind CSS project with react-router-
 - [ ] At least one Tailwind utility class is applied and rendered in the DOM
 - [ ] `playwright.config.ts` exists at repo root with `webServer` config pointing to port 5173
 
-## Dependencies
-- task0 must be complete (CONVENTIONS.md committed and approved before this task runs)
-
 ## File and folder targets
 - Create: `package.json`
 - Create: `vite.config.ts`
