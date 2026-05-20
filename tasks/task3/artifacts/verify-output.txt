@@ -1,0 +1,25 @@
+
+Running 20 tests using 1 worker
+
+  ✓   1 [chromium] › tasks/task3/task3-verify.spec.ts:40:3 › Task 3: Core CRUD UI › empty state is visible when no todos exist (373ms)
+  ✓   2 [chromium] › tasks/task3/task3-verify.spec.ts:44:3 › Task 3: Core CRUD UI › add-todo-btn is visible on the dashboard (303ms)
+  ✓   3 [chromium] › tasks/task3/task3-verify.spec.ts:50:3 › Task 3: Core CRUD UI › clicking add-todo-btn opens the todo form modal (328ms)
+  ✓   4 [chromium] › tasks/task3/task3-verify.spec.ts:55:3 › Task 3: Core CRUD UI › pressing Escape closes the modal without saving (321ms)
+  ✓   5 [chromium] › tasks/task3/task3-verify.spec.ts:63:3 › Task 3: Core CRUD UI › clicking the form cancel button closes the modal (365ms)
+  ✓   6 [chromium] › tasks/task3/task3-verify.spec.ts:71:3 › Task 3: Core CRUD UI › submitting with empty title shows title error and keeps modal open (341ms)
+  ✓   7 [chromium] › tasks/task3/task3-verify.spec.ts:78:3 › Task 3: Core CRUD UI › submitting with due date before work-on date shows due date error (435ms)
+  ✓   8 [chromium] › tasks/task3/task3-verify.spec.ts:91:3 › Task 3: Core CRUD UI › valid form submission closes modal and shows the card (390ms)
+  ✓   9 [chromium] › tasks/task3/task3-verify.spec.ts:97:3 › Task 3: Core CRUD UI › card shows correct title (412ms)
+  ✓  10 [chromium] › tasks/task3/task3-verify.spec.ts:102:3 › Task 3: Core CRUD UI › office category badge contains "blue" class (456ms)
+  ✓  11 [chromium] › tasks/task3/task3-verify.spec.ts:109:3 › Task 3: Core CRUD UI › personal category badge contains "green" class (425ms)
+  ✓  12 [chromium] › tasks/task3/task3-verify.spec.ts:116:3 › Task 3: Core CRUD UI › family category badge contains "purple" class (422ms)
+  ✓  13 [chromium] › tasks/task3/task3-verify.spec.ts:123:3 › Task 3: Core CRUD UI › empty state disappears after adding a todo (438ms)
+  ✓  14 [chromium] › tasks/task3/task3-verify.spec.ts:130:3 › Task 3: Core CRUD UI › todos persist after page reload (476ms)
+  ✓  15 [chromium] › tasks/task3/task3-verify.spec.ts:140:3 › Task 3: Core CRUD UI › clicking edit opens the form pre-populated (438ms)
+  ✓  16 [chromium] › tasks/task3/task3-verify.spec.ts:147:3 › Task 3: Core CRUD UI › saving an edit updates the card title (514ms)
+  ✓  17 [chromium] › tasks/task3/task3-verify.spec.ts:157:3 › Task 3: Core CRUD UI › clicking delete shows inline confirmation (431ms)
+  ✓  18 [chromium] › tasks/task3/task3-verify.spec.ts:163:3 › Task 3: Core CRUD UI › clicking cancel on delete dismisses confirmation without deleting (498ms)
+  ✓  19 [chromium] › tasks/task3/task3-verify.spec.ts:171:3 › Task 3: Core CRUD UI › confirming delete removes the card from the list (484ms)
+  ✓  20 [chromium] › tasks/task3/task3-verify.spec.ts:181:3 › Task 3: Core CRUD UI › mark complete button is visible on a card (455ms)
+
+  20 passed (9.2s)

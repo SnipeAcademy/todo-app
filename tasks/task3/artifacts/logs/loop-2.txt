@@ -1,0 +1,1 @@
+The exit code 1 is from unrelated Task 4 failures (priority badges not yet implemented) and a pre-existing Task 2 TypeScript compile check — all 20 Task 3 tests passed. The fix is confirmed good.
