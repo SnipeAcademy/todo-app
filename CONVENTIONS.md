@@ -18,7 +18,7 @@ This file is the single source of truth for naming, structure, tooling, and beha
 todo-app/
 ├── src/
 │   ├── components/        # Reusable UI components (PascalCase files)
-│   ├── contexts/          # React context providers ({Domain}Context.tsx)
+│   ├── context/           # React context providers ({Domain}Context.tsx)
 │   ├── hooks/             # Custom React hooks (useFoo.ts)
 │   ├── types/             # TypeScript type definitions (index.ts)
 │   ├── utils/             # Pure utility functions (kebab-case)
