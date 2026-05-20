@@ -1,0 +1,699 @@
+Reading additional input from stdin...
+OpenAI Codex v0.130.0
+--------
+workdir: /root/development/todo-app
+model: gpt-5.5
+provider: openai
+approval: never
+sandbox: read-only
+reasoning effort: none
+reasoning summaries: none
+session id: 019e4365-2ed0-7501-8f8f-9d3c6a2fe619
+--------
+user
+You are Codex reviewing a task implementation. Read the task spec (task1.md), what was built (task1-result.md), and the verify runner output above. Write tasks/task1/task1-review-feedback.md (human-readable notes) and tasks/task1/task1-review-feedback.json (machine-readable, strict schema). The json must contain: task_id, iteration, passed_review (bool), verify_exit_code (int), furthest_iteration (int), blocking_issues (array), non_blocking_notes (array), next_action (pass|retry|terminate).
+
+<stdin>
+# CONVENTIONS.md
+
+This file is the single source of truth for naming, structure, tooling, and behaviour rules across the entire project. It is passed as context to every Claude Code and Codex invocation.
+
+---
+
+## Naming
+
+- **Components**: PascalCase, one component per file.
+- **Files**: `kebab-case` for non-component files, `PascalCase` for component files.
+- **Test IDs**: `data-testid` attribute on every interactive and key display element, formatted as `kebab-case`.
+- **Context files**: Named `{Domain}Context.tsx`.
+- **Types**: Defined in `src/types/index.ts`.
+
+## Folder structure
+
+```
+todo-app/
+├── src/
+│   ├── components/        # Reusable UI components (PascalCase files)
+│   ├── context/           # React context providers ({Domain}Context.tsx)
+│   ├── hooks/             # Custom React hooks (useFoo.ts)
+│   ├── types/             # TypeScript type definitions (index.ts)
+│   ├── utils/             # Pure utility functions (kebab-case)
+│   ├── App.tsx            # Root application component
+│   └── main.tsx           # Entry point
+├── tests/                 # Playwright end-to-end tests
+├── tasks/                 # Task definitions and verification scripts
+├── public/                # Static assets
+├── package.json
+├── vite.config.ts
+├── tsconfig.json
+├── tailwind.config.js
+└── CONVENTIONS.md
+```
+
+## Error handling
+
+- Never swallow errors silently — always surface to the user or re-throw.
+- Use `try/catch` blocks around async operations with meaningful error messages.
+- Display user-facing errors in the UI; log developer-facing errors to console.
+- Do not use empty `catch {}` blocks.
+
+## Styling
+
+- **Tailwind CSS v3** is the only styling system.
+- No inline styles (`style={}` prop is forbidden).
+- No CSS Modules, no styled-components, no emotion, no other CSS-in-JS libraries.
+- Use Tailwind utility classes exclusively. Prefer composition over custom CSS.
+- When Tailwind utility classes are insufficient, use `@apply` in a CSS file — never fall back to inline styles.
+
+## Verification tooling
+
+- **Playwright** is the testing framework for end-to-end verification.
+- Tests use the `browser_app` protocol for browser automation.
+- Every interactive element and key display element must have a `data-testid` attribute.
+- Playwright tests must use explicit waits on element state (e.g., `locator.isEnabled()`, `locator.isVisible()`), never `waitForTimeout`.
+
+## Environment contract
+
+```json
+{
+  "setup_command": "npm install",
+  "dev_command": "npm run dev",
+  "verify_command": "npx playwright test",
+  "required_env_vars": []
+}
+```
+
+### Stack
+
+| Layer        | Technology                  |
+|-------------|-----------------------------|
+| Build       | Vite                        |
+| Framework   | React 18                    |
+| Language    | TypeScript (strict mode)    |
+| Routing     | react-router-dom v6         |
+| Styling     | Tailwind CSS v3             |
+| Dates       | date-fns                    |
+| State       | React context + useReducer   |
+| Storage     | localStorage only (no backend) |
+| Testing     | Playwright                   |
+
+## What Claude Code must never do
+
+1. **Install packages** not already declared in `package.json` unless the task's scope explicitly requires it.
+2. **Touch files** outside the task's declared `allowed_paths`.
+3. **Use inline styles** — all styling must go through Tailwind utility classes.
+4. **Mix styling systems** — no CSS Modules, no styled-components, no other CSS-in-JS.
+5. **Use the `any` type** in TypeScript — always define proper types or use `unknown`.
+6. **Swallow errors silently** — always surface to the user or re-throw.
+7. **Use `waitForTimeout`** in Playwright tests — use explicit waits on element state instead.
+# Task 1: Project Scaffold
+
+## Objective
+Initialise a Vite + React + TypeScript + Tailwind CSS project with react-router-dom routing, install Playwright for end-to-end testing, and produce the folder skeleton and stub pages that all subsequent tasks will build on.
+
+## Scope
+- Run `npm create vite@latest` to scaffold the project
+- Install and configure Tailwind CSS v3, react-router-dom, date-fns, and Playwright
+- Create the `src/` folder structure with barrel `index.ts` files
+- Implement a persistent `<Layout>` component with a top navigation bar
+- Create three stub route pages: Dashboard, Calendar, Completed
+- Wire up client-side routing via react-router-dom
+- Create `playwright.config.ts` with `webServer` pointing to the dev server on port 5173
+- Add `data-testid` attributes to every navigation element and page root element
+
+## Out of scope
+- No real todo data or business logic (that is task 2)
+- No todo UI components (task 3+)
+- No priority logic (task 4)
+- No calendar grid (task 5)
+- No completed-task filtering (task 6)
+- Do not create `CONVENTIONS.md` — that was task 0
+
+## Acceptance criteria
+- [ ] `npm run dev` starts without errors and serves on port 5173
+- [ ] `npx tsc --noEmit` exits 0 (zero TypeScript errors)
+- [ ] Navigating to `/` renders an element with `data-testid="page-dashboard"`
+- [ ] Navigating to `/calendar` renders an element with `data-testid="page-calendar"`
+- [ ] Navigating to `/completed` renders an element with `data-testid="page-completed"`
+- [ ] Any unknown route (e.g. `/unknown`) redirects to `/` without a crash
+- [ ] Navigation bar is visible on all three routes
+- [ ] Nav link `data-testid="nav-dashboard"` is present and navigates to `/`
+- [ ] Nav link `data-testid="nav-calendar"` is present and navigates to `/calendar`
+- [ ] Nav link `data-testid="nav-completed"` is present and navigates to `/completed`
+- [ ] Active nav link has a visually distinct style compared to inactive links (verified by checking for an `aria-current="page"` attribute or a distinct CSS class)
+- [ ] At least one Tailwind utility class is applied and rendered in the DOM
+- [ ] `playwright.config.ts` exists at repo root with `webServer` config pointing to port 5173
+
+## File and folder targets
+- Create: `package.json`
+- Create: `vite.config.ts`
+- Create: `tsconfig.json`, `tsconfig.app.json`, `tsconfig.node.json`
+- Create: `tailwind.config.js`
+- Create: `postcss.config.js`
+- Create: `index.html`
+- Create: `playwright.config.ts`
+- Create: `src/main.tsx`
+- Create: `src/App.tsx`
+- Create: `src/index.css` (Tailwind directives only)
+- Create: `src/vite-env.d.ts`
+- Create: `src/components/Layout.tsx`
+- Create: `src/components/index.ts`
+- Create: `src/pages/DashboardPage.tsx`
+- Create: `src/pages/CalendarPage.tsx`
+- Create: `src/pages/CompletedPage.tsx`
+- Create: `src/pages/index.ts`
+- Create: `src/context/index.ts`
+- Create: `src/services/index.ts`
+- Create: `src/types/index.ts`
+- Create: `src/hooks/index.ts`
+- Create: `src/utils/index.ts`
+- Do not touch: `CONVENTIONS.md`
+- Do not touch: anything under `tasks/`
+
+## Design constraints
+- Follow `CONVENTIONS.md` for all naming rules
+- Use `NavLink` from react-router-dom for navigation — it provides `aria-current="page"` on the active link automatically
+- Use Tailwind utility classes exclusively — no CSS Modules, no inline styles
+- Use TypeScript strict mode (already set in tsconfig by Vite's react-ts template)
+- `src/index.css` must contain only the three Tailwind directives — no other CSS
+
+### Tailwind configuration
+`tailwind.config.js` content field must include:
+```js
+content: ["./index.html", "./src/**/*.{js,ts,jsx,tsx}"]
+```
+
+### Playwright configuration
+`playwright.config.ts` must include a `webServer` block:
+```ts
+webServer: {
+  command: 'npm run dev',
+  port: 5173,
+  reuseExistingServer: !process.env.CI,
+  timeout: 30_000,
+}
+```
+And `use.baseURL` set to `'http://localhost:5173'`.
+
+### Dependencies to install
+```
+npm create vite@latest . -- --template react-ts
+npm install
+npm install react-router-dom date-fns
+npm install -D tailwindcss@3 postcss autoprefixer
+npm install -D @playwright/test
+npx playwright install --with-deps chromium
+npx tailwindcss init -p
+```
+
+## Context
+This is the foundation task. Every subsequent task builds on the scaffold created here. The stub pages are intentionally minimal — each will be filled in by later tasks. Routing must work before any feature work begins. Playwright must be installed here because the verify runner for every subsequent task uses it.
+# Task 1 Result — Project Scaffold
+
+## Status: implemented
+
+## What was built
+
+A complete Vite + React 18 + TypeScript + Tailwind CSS v3 scaffold with react-router-dom v6 routing and Playwright configured for end-to-end testing.
+
+### Files created
+
+| File | Description |
+|---|---|
+| `package.json` | Project manifest with all required dependencies |
+| `package-lock.json` | Generated lock file from `npm install` |
+| `vite.config.ts` | Vite config using `@vitejs/plugin-react` |
+| `tsconfig.json` | Root TS config with project references |
+| `tsconfig.app.json` | App TS config — strict mode, react-jsx, bundler resolution |
+| `tsconfig.node.json` | Node TS config for Vite config file |
+| `tailwind.config.js` | Tailwind v3 config, content includes `./index.html` and `./src/**/*.{js,ts,jsx,tsx}` |
+| `postcss.config.js` | PostCSS config with tailwindcss and autoprefixer plugins |
+| `index.html` | HTML entry point referencing `src/main.tsx` |
+| `playwright.config.ts` | Playwright config with `webServer` on port 5173, `baseURL: 'http://localhost:5173'` |
+| `src/main.tsx` | React entry point — mounts `<App />` in StrictMode |
+| `src/App.tsx` | Root component — BrowserRouter + Routes + catch-all redirect to `/` |
+| `src/index.css` | Three Tailwind directives only (`@tailwind base/components/utilities`) |
+| `src/vite-env.d.ts` | Vite client type reference |
+| `src/components/Layout.tsx` | Persistent layout with `<nav>` containing three `NavLink` elements |
+| `src/components/index.ts` | Barrel export for Layout |
+| `src/pages/DashboardPage.tsx` | Stub page with `data-testid="page-dashboard"` |
+| `src/pages/CalendarPage.tsx` | Stub page with `data-testid="page-calendar"` |
+| `src/pages/CompletedPage.tsx` | Stub page with `data-testid="page-completed"` |
+| `src/pages/index.ts` | Barrel export for all three pages |
+| `src/context/index.ts` | Empty stub barrel |
+| `src/hooks/index.ts` | Empty stub barrel |
+| `src/utils/index.ts` | Empty stub barrel |
+| `src/services/index.ts` | Empty stub barrel |
+| `src/types/index.ts` | Empty stub barrel |
+
+### Routing
+
+- `<BrowserRouter>` wraps all routes
+- Layout component renders a persistent `<nav>` on every route via `<Outlet />`
+- `<Route path="*" element={<Navigate to="/" replace />} />` handles unknown routes
+
+### Navigation
+
+- `<NavLink>` from react-router-dom provides `aria-current="page"` automatically on the active link
+- `data-testid` attributes: `nav-dashboard`, `nav-calendar`, `nav-completed`
+- Active link style: `bg-blue-600 text-white`; inactive: `text-gray-600 hover:bg-gray-100`
+
+### Styling
+
+- Tailwind CSS v3 only — no inline styles, no CSS Modules
+- `<nav>` element has Tailwind classes (`bg-white border-b border-gray-200 px-4 py-3 flex gap-2`)
+
+## Verification
+
+- `npx tsc --noEmit` exits 0 (zero TypeScript errors)
+- Dev server starts on port 5173 and returns HTTP 200
+- All `data-testid` attributes present: `page-dashboard`, `page-calendar`, `page-completed`, `nav-dashboard`, `nav-calendar`, `nav-completed`
+
+Running 14 tests using 1 worker
+
+  ✓   1 [chromium] › tests/task1-verify.spec.ts:20:3 › Task 1: Project Scaffold › / renders the dashboard page (444ms)
+  ✓   2 [chromium] › tests/task1-verify.spec.ts:24:3 › Task 1: Project Scaffold › /calendar renders the calendar page (295ms)
+  ✓   3 [chromium] › tests/task1-verify.spec.ts:29:3 › Task 1: Project Scaffold › /completed renders the completed page (298ms)
+  ✓   4 [chromium] › tests/task1-verify.spec.ts:34:3 › Task 1: Project Scaffold › unknown route redirects to dashboard (318ms)
+  ✓   5 [chromium] › tests/task1-verify.spec.ts:42:3 › Task 1: Project Scaffold › navigation bar is visible on dashboard (197ms)
+  ✓   6 [chromium] › tests/task1-verify.spec.ts:47:3 › Task 1: Project Scaffold › navigation bar is visible on calendar page (239ms)
+  ✓   7 [chromium] › tests/task1-verify.spec.ts:53:3 › Task 1: Project Scaffold › navigation bar is visible on completed page (250ms)
+  ✓   8 [chromium] › tests/task1-verify.spec.ts:59:3 › Task 1: Project Scaffold › nav links have correct data-testid attributes (197ms)
+  ✓   9 [chromium] › tests/task1-verify.spec.ts:67:3 › Task 1: Project Scaffold › clicking nav-calendar navigates to /calendar without reload (240ms)
+  ✓  10 [chromium] › tests/task1-verify.spec.ts:78:3 › Task 1: Project Scaffold › clicking nav-completed navigates to /completed (199ms)
+  ✓  11 [chromium] › tests/task1-verify.spec.ts:84:3 › Task 1: Project Scaffold › clicking nav-dashboard navigates back to / (283ms)
+  ✓  12 [chromium] › tests/task1-verify.spec.ts:93:3 › Task 1: Project Scaffold › dashboard nav link has aria-current="page" when on / (251ms)
+  ✓  13 [chromium] › tests/task1-verify.spec.ts:98:3 › Task 1: Project Scaffold › calendar nav link has aria-current="page" when on /calendar (294ms)
+  ✓  14 [chromium] › tests/task1-verify.spec.ts:106:3 › Task 1: Project Scaffold › Tailwind utility classes are applied in the DOM (219ms)
+
+  14 passed (4.7s)
+</stdin>
+warning: Codex could not find bubblewrap on PATH. Install bubblewrap with your OS package manager. See the sandbox prerequisites: https://developers.openai.com/codex/concepts/sandboxing#prerequisites. Codex will use the bundled bubblewrap in the meantime.
+codex
+I’ll read the task artifacts and current task directory first, then I’ll write the review notes if the workspace permits it. Since this session is read-only, I may need to report the exact file contents instead of committing them.
+exec
+/bin/bash -lc "sed -n '1,240p' tasks/task1/task1.md" in /root/development/todo-app
+ succeeded in 0ms:
+# Task 1: Project Scaffold
+
+## Objective
+Initialise a Vite + React + TypeScript + Tailwind CSS project with react-router-dom routing, install Playwright for end-to-end testing, and produce the folder skeleton and stub pages that all subsequent tasks will build on.
+
+## Scope
+- Run `npm create vite@latest` to scaffold the project
+- Install and configure Tailwind CSS v3, react-router-dom, date-fns, and Playwright
+- Create the `src/` folder structure with barrel `index.ts` files
+- Implement a persistent `<Layout>` component with a top navigation bar
+- Create three stub route pages: Dashboard, Calendar, Completed
+- Wire up client-side routing via react-router-dom
+- Create `playwright.config.ts` with `webServer` pointing to the dev server on port 5173
+- Add `data-testid` attributes to every navigation element and page root element
+
+## Out of scope
+- No real todo data or business logic (that is task 2)
+- No todo UI components (task 3+)
+- No priority logic (task 4)
+- No calendar grid (task 5)
+- No completed-task filtering (task 6)
+- Do not create `CONVENTIONS.md` — that was task 0
+
+## Acceptance criteria
+- [ ] `npm run dev` starts without errors and serves on port 5173
+- [ ] `npx tsc --noEmit` exits 0 (zero TypeScript errors)
+- [ ] Navigating to `/` renders an element with `data-testid="page-dashboard"`
+- [ ] Navigating to `/calendar` renders an element with `data-testid="page-calendar"`
+- [ ] Navigating to `/completed` renders an element with `data-testid="page-completed"`
+- [ ] Any unknown route (e.g. `/unknown`) redirects to `/` without a crash
+- [ ] Navigation bar is visible on all three routes
+- [ ] Nav link `data-testid="nav-dashboard"` is present and navigates to `/`
+- [ ] Nav link `data-testid="nav-calendar"` is present and navigates to `/calendar`
+- [ ] Nav link `data-testid="nav-completed"` is present and navigates to `/completed`
+- [ ] Active nav link has a visually distinct style compared to inactive links (verified by checking for an `aria-current="page"` attribute or a distinct CSS class)
+- [ ] At least one Tailwind utility class is applied and rendered in the DOM
+- [ ] `playwright.config.ts` exists at repo root with `webServer` config pointing to port 5173
+
+## File and folder targets
+- Create: `package.json`
+- Create: `vite.config.ts`
+- Create: `tsconfig.json`, `tsconfig.app.json`, `tsconfig.node.json`
+- Create: `tailwind.config.js`
+- Create: `postcss.config.js`
+- Create: `index.html`
+- Create: `playwright.config.ts`
+- Create: `src/main.tsx`
+- Create: `src/App.tsx`
+- Create: `src/index.css` (Tailwind directives only)
+- Create: `src/vite-env.d.ts`
+- Create: `src/components/Layout.tsx`
+- Create: `src/components/index.ts`
+- Create: `src/pages/DashboardPage.tsx`
+- Create: `src/pages/CalendarPage.tsx`
+- Create: `src/pages/CompletedPage.tsx`
+- Create: `src/pages/index.ts`
+- Create: `src/context/index.ts`
+- Create: `src/services/index.ts`
+- Create: `src/types/index.ts`
+- Create: `src/hooks/index.ts`
+- Create: `src/utils/index.ts`
+- Do not touch: `CONVENTIONS.md`
+- Do not touch: anything under `tasks/`
+
+## Design constraints
+- Follow `CONVENTIONS.md` for all naming rules
+- Use `NavLink` from react-router-dom for navigation — it provides `aria-current="page"` on the active link automatically
+- Use Tailwind utility classes exclusively — no CSS Modules, no inline styles
+- Use TypeScript strict mode (already set in tsconfig by Vite's react-ts template)
+- `src/index.css` must contain only the three Tailwind directives — no other CSS
+
+### Tailwind configuration
+`tailwind.config.js` content field must include:
+```js
+content: ["./index.html", "./src/**/*.{js,ts,jsx,tsx}"]
+```
+
+### Playwright configuration
+`playwright.config.ts` must include a `webServer` block:
+```ts
+webServer: {
+  command: 'npm run dev',
+  port: 5173,
+  reuseExistingServer: !process.env.CI,
+  timeout: 30_000,
+}
+```
+And `use.baseURL` set to `'http://localhost:5173'`.
+
+### Dependencies to install
+```
+npm create vite@latest . -- --template react-ts
+npm install
+npm install react-router-dom date-fns
+npm install -D tailwindcss@3 postcss autoprefixer
+npm install -D @playwright/test
+npx playwright install --with-deps chromium
+npx tailwindcss init -p
+```
+
+## Context
+This is the foundation task. Every subsequent task builds on the scaffold created here. The stub pages are intentionally minimal — each will be filled in by later tasks. Routing must work before any feature work begins. Playwright must be installed here because the verify runner for every subsequent task uses it.
+
+exec
+/bin/bash -lc 'pwd && rg --files tasks src package.json tsconfig.json playwright.config.ts 2>/dev/null | sort' in /root/development/todo-app
+ succeeded in 0ms:
+/root/development/todo-app
+package.json
+playwright.config.ts
+src/App.tsx
+src/components/Layout.tsx
+src/components/index.ts
+src/context/index.ts
+src/hooks/index.ts
+src/index.css
+src/main.tsx
+src/pages/CalendarPage.tsx
+src/pages/CompletedPage.tsx
+src/pages/DashboardPage.tsx
+src/pages/index.ts
+src/services/index.ts
+src/types/index.ts
+src/utils/index.ts
+src/vite-env.d.ts
+tasks/task1/artifacts/logs/codex-1.txt
+tasks/task1/artifacts/logs/loop-1.txt
+tasks/task1/artifacts/verify-output.txt
+tasks/task1/task1-assumptions.md
+tasks/task1/task1-result.json
+tasks/task1/task1-result.md
+tasks/task1/task1-verify.spec.ts
+tasks/task1/task1.manifest.json
+tasks/task1/task1.md
+tasks/task2/task2-verify.spec.ts
+tasks/task2/task2.manifest.json
+tasks/task2/task2.md
+tasks/task3/task3-verify.spec.ts
+tasks/task3/task3.manifest.json
+tasks/task3/task3.md
+tasks/task4/task4-verify.spec.ts
+tasks/task4/task4.manifest.json
+tasks/task4/task4.md
+tasks/task5/task5-verify.spec.ts
+tasks/task5/task5.manifest.json
+tasks/task5/task5.md
+tasks/task6/task6-verify.spec.ts
+tasks/task6/task6.manifest.json
+tasks/task6/task6.md
+tsconfig.json
+
+exec
+/bin/bash -lc "sed -n '1,240p' tasks/task1/task1-result.md" in /root/development/todo-app
+ succeeded in 0ms:
+# Task 1 Result — Project Scaffold
+
+## Status: implemented
+
+## What was built
+
+A complete Vite + React 18 + TypeScript + Tailwind CSS v3 scaffold with react-router-dom v6 routing and Playwright configured for end-to-end testing.
+
+### Files created
+
+| File | Description |
+|---|---|
+| `package.json` | Project manifest with all required dependencies |
+| `package-lock.json` | Generated lock file from `npm install` |
+| `vite.config.ts` | Vite config using `@vitejs/plugin-react` |
+| `tsconfig.json` | Root TS config with project references |
+| `tsconfig.app.json` | App TS config — strict mode, react-jsx, bundler resolution |
+| `tsconfig.node.json` | Node TS config for Vite config file |
+| `tailwind.config.js` | Tailwind v3 config, content includes `./index.html` and `./src/**/*.{js,ts,jsx,tsx}` |
+| `postcss.config.js` | PostCSS config with tailwindcss and autoprefixer plugins |
+| `index.html` | HTML entry point referencing `src/main.tsx` |
+| `playwright.config.ts` | Playwright config with `webServer` on port 5173, `baseURL: 'http://localhost:5173'` |
+| `src/main.tsx` | React entry point — mounts `<App />` in StrictMode |
+| `src/App.tsx` | Root component — BrowserRouter + Routes + catch-all redirect to `/` |
+| `src/index.css` | Three Tailwind directives only (`@tailwind base/components/utilities`) |
+| `src/vite-env.d.ts` | Vite client type reference |
+| `src/components/Layout.tsx` | Persistent layout with `<nav>` containing three `NavLink` elements |
+| `src/components/index.ts` | Barrel export for Layout |
+| `src/pages/DashboardPage.tsx` | Stub page with `data-testid="page-dashboard"` |
+| `src/pages/CalendarPage.tsx` | Stub page with `data-testid="page-calendar"` |
+| `src/pages/CompletedPage.tsx` | Stub page with `data-testid="page-completed"` |
+| `src/pages/index.ts` | Barrel export for all three pages |
+| `src/context/index.ts` | Empty stub barrel |
+| `src/hooks/index.ts` | Empty stub barrel |
+| `src/utils/index.ts` | Empty stub barrel |
+| `src/services/index.ts` | Empty stub barrel |
+| `src/types/index.ts` | Empty stub barrel |
+
+### Routing
+
+- `<BrowserRouter>` wraps all routes
+- Layout component renders a persistent `<nav>` on every route via `<Outlet />`
+- `<Route path="*" element={<Navigate to="/" replace />} />` handles unknown routes
+
+### Navigation
+
+- `<NavLink>` from react-router-dom provides `aria-current="page"` automatically on the active link
+- `data-testid` attributes: `nav-dashboard`, `nav-calendar`, `nav-completed`
+- Active link style: `bg-blue-600 text-white`; inactive: `text-gray-600 hover:bg-gray-100`
+
+### Styling
+
+- Tailwind CSS v3 only — no inline styles, no CSS Modules
+- `<nav>` element has Tailwind classes (`bg-white border-b border-gray-200 px-4 py-3 flex gap-2`)
+
+## Verification
+
+- `npx tsc --noEmit` exits 0 (zero TypeScript errors)
+- Dev server starts on port 5173 and returns HTTP 200
+- All `data-testid` attributes present: `page-dashboard`, `page-calendar`, `page-completed`, `nav-dashboard`, `nav-calendar`, `nav-completed`
+
+codex
+The implementation report and task spec line up at a high level. I’m checking the actual scaffold files and verify log now so the review is based on the workspace, not only the result summary.
+exec
+/bin/bash -lc "sed -n '1,220p' tasks/task1/artifacts/verify-output.txt" in /root/development/todo-app
+ succeeded in 0ms:
+
+Running 14 tests using 1 worker
+
+  ✓   1 [chromium] › tests/task1-verify.spec.ts:20:3 › Task 1: Project Scaffold › / renders the dashboard page (444ms)
+  ✓   2 [chromium] › tests/task1-verify.spec.ts:24:3 › Task 1: Project Scaffold › /calendar renders the calendar page (295ms)
+  ✓   3 [chromium] › tests/task1-verify.spec.ts:29:3 › Task 1: Project Scaffold › /completed renders the completed page (298ms)
+  ✓   4 [chromium] › tests/task1-verify.spec.ts:34:3 › Task 1: Project Scaffold › unknown route redirects to dashboard (318ms)
+  ✓   5 [chromium] › tests/task1-verify.spec.ts:42:3 › Task 1: Project Scaffold › navigation bar is visible on dashboard (197ms)
+  ✓   6 [chromium] › tests/task1-verify.spec.ts:47:3 › Task 1: Project Scaffold › navigation bar is visible on calendar page (239ms)
+  ✓   7 [chromium] › tests/task1-verify.spec.ts:53:3 › Task 1: Project Scaffold › navigation bar is visible on completed page (250ms)
+  ✓   8 [chromium] › tests/task1-verify.spec.ts:59:3 › Task 1: Project Scaffold › nav links have correct data-testid attributes (197ms)
+  ✓   9 [chromium] › tests/task1-verify.spec.ts:67:3 › Task 1: Project Scaffold › clicking nav-calendar navigates to /calendar without reload (240ms)
+  ✓  10 [chromium] › tests/task1-verify.spec.ts:78:3 › Task 1: Project Scaffold › clicking nav-completed navigates to /completed (199ms)
+  ✓  11 [chromium] › tests/task1-verify.spec.ts:84:3 › Task 1: Project Scaffold › clicking nav-dashboard navigates back to / (283ms)
+  ✓  12 [chromium] › tests/task1-verify.spec.ts:93:3 › Task 1: Project Scaffold › dashboard nav link has aria-current="page" when on / (251ms)
+  ✓  13 [chromium] › tests/task1-verify.spec.ts:98:3 › Task 1: Project Scaffold › calendar nav link has aria-current="page" when on /calendar (294ms)
+  ✓  14 [chromium] › tests/task1-verify.spec.ts:106:3 › Task 1: Project Scaffold › Tailwind utility classes are applied in the DOM (219ms)
+
+  14 passed (4.7s)
+
+exec
+/bin/bash -lc "sed -n '1,220p' package.json" in /root/development/todo-app
+ succeeded in 0ms:
+{
+  "name": "todo-app",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc -b && vite build",
+    "lint": "eslint .",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "date-fns": "^4.1.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-router-dom": "^6.28.0"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.49.1",
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.1",
+    "@vitejs/plugin-react": "^4.3.4",
+    "autoprefixer": "^10.4.20",
+    "postcss": "^8.4.49",
+    "tailwindcss": "^3.4.17",
+    "typescript": "^5.7.2",
+    "vite": "^6.0.5"
+  }
+}
+
+exec
+/bin/bash -lc "sed -n '1,220p' playwright.config.ts" in /root/development/todo-app
+ succeeded in 0ms:
+import { defineConfig, devices } from '@playwright/test'
+
+export default defineConfig({
+  testDir: './tests',
+  fullyParallel: true,
+  forbidOnly: !!process.env.CI,
+  retries: process.env.CI ? 2 : 0,
+  workers: process.env.CI ? 1 : undefined,
+  reporter: 'list',
+  use: {
+    baseURL: 'http://localhost:5173',
+    trace: 'on-first-retry',
+  },
+  projects: [
+    {
+      name: 'chromium',
+      use: { ...devices['Desktop Chrome'] },
+    },
+  ],
+  webServer: {
+    command: 'npm run dev',
+    port: 5173,
+    reuseExistingServer: !process.env.CI,
+    timeout: 30_000,
+  },
+})
+
+exec
+/bin/bash -lc "sed -n '1,220p' src/App.tsx && sed -n '1,220p' src/components/Layout.tsx" in /root/development/todo-app
+ succeeded in 0ms:
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
+import { Layout } from './components'
+import { DashboardPage, CalendarPage, CompletedPage } from './pages'
+
+export default function App() {
+  return (
+    <BrowserRouter>
+      <Routes>
+        <Route element={<Layout />}>
+          <Route index element={<DashboardPage />} />
+          <Route path="calendar" element={<CalendarPage />} />
+          <Route path="completed" element={<CompletedPage />} />
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Route>
+      </Routes>
+    </BrowserRouter>
+  )
+}
+import { NavLink, Outlet } from 'react-router-dom'
+
+const navLinkClass = ({ isActive }: { isActive: boolean }) =>
+  `px-4 py-2 rounded text-sm font-medium transition-colors ${
+    isActive
+      ? 'bg-blue-600 text-white'
+      : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
+  }`
+
+export default function Layout() {
+  return (
+    <div className="min-h-screen bg-gray-50">
+      <nav className="bg-white border-b border-gray-200 px-4 py-3 flex gap-2">
+        <NavLink to="/" end data-testid="nav-dashboard" className={navLinkClass}>
+          Dashboard
+        </NavLink>
+        <NavLink to="/calendar" data-testid="nav-calendar" className={navLinkClass}>
+          Calendar
+        </NavLink>
+        <NavLink to="/completed" data-testid="nav-completed" className={navLinkClass}>
+          Completed
+        </NavLink>
+      </nav>
+      <Outlet />
+    </div>
+  )
+}
+
+codex
+The verify runner shows 14/14 passing, and the core routing, Tailwind, and Playwright config all satisfy the Task 1 acceptance checks. I don’t see blocking implementation issues, so I’m preparing a pass review with concise notes.
+2026-05-20T03:19:53.373833Z ERROR codex_core::tools::router: error=patch rejected: writing is blocked by read-only sandbox; rejected by user approval settings
+codex
+I reviewed the implementation. It passes: verify output is `14 passed`, so `verify_exit_code` should be `0`, with no blocking issues.
+
+I could not write the requested files because the workspace is currently mounted read-only and approval is disabled. The attempted patch was rejected by the sandbox.
+
+Use these contents:
+
+```json
+{
+  "task_id": "task1",
+  "iteration": 1,
+  "passed_review": true,
+  "verify_exit_code": 0,
+  "furthest_iteration": 1,
+  "blocking_issues": [],
+  "non_blocking_notes": [
+    "Verification passed: 14 Playwright tests completed successfully.",
+    "package-lock.json was created by npm install; this is expected and non-blocking."
+  ],
+  "next_action": "pass"
+}
+```
+
+Markdown summary for `tasks/task1/task1-review-feedback.md`: passed review, no blocking issues, verification passed 14/14, proceed to next task.
+tokens used
+18,145
+I reviewed the implementation. It passes: verify output is `14 passed`, so `verify_exit_code` should be `0`, with no blocking issues.
+
+I could not write the requested files because the workspace is currently mounted read-only and approval is disabled. The attempted patch was rejected by the sandbox.
+
+Use these contents:
+
+```json
+{
+  "task_id": "task1",
+  "iteration": 1,
+  "passed_review": true,
+  "verify_exit_code": 0,
+  "furthest_iteration": 1,
+  "blocking_issues": [],
+  "non_blocking_notes": [
+    "Verification passed: 14 Playwright tests completed successfully.",
+    "package-lock.json was created by npm install; this is expected and non-blocking."
+  ],
+  "next_action": "pass"
+}
+```
+
+Markdown summary for `tasks/task1/task1-review-feedback.md`: passed review, no blocking issues, verification passed 14/14, proceed to next task.

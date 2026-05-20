@@ -1,0 +1,19 @@
+
+Running 14 tests using 1 worker
+
+  ✓   1 [chromium] › tests/task1-verify.spec.ts:20:3 › Task 1: Project Scaffold › / renders the dashboard page (444ms)
+  ✓   2 [chromium] › tests/task1-verify.spec.ts:24:3 › Task 1: Project Scaffold › /calendar renders the calendar page (295ms)
+  ✓   3 [chromium] › tests/task1-verify.spec.ts:29:3 › Task 1: Project Scaffold › /completed renders the completed page (298ms)
+  ✓   4 [chromium] › tests/task1-verify.spec.ts:34:3 › Task 1: Project Scaffold › unknown route redirects to dashboard (318ms)
+  ✓   5 [chromium] › tests/task1-verify.spec.ts:42:3 › Task 1: Project Scaffold › navigation bar is visible on dashboard (197ms)
+  ✓   6 [chromium] › tests/task1-verify.spec.ts:47:3 › Task 1: Project Scaffold › navigation bar is visible on calendar page (239ms)
+  ✓   7 [chromium] › tests/task1-verify.spec.ts:53:3 › Task 1: Project Scaffold › navigation bar is visible on completed page (250ms)
+  ✓   8 [chromium] › tests/task1-verify.spec.ts:59:3 › Task 1: Project Scaffold › nav links have correct data-testid attributes (197ms)
+  ✓   9 [chromium] › tests/task1-verify.spec.ts:67:3 › Task 1: Project Scaffold › clicking nav-calendar navigates to /calendar without reload (240ms)
+  ✓  10 [chromium] › tests/task1-verify.spec.ts:78:3 › Task 1: Project Scaffold › clicking nav-completed navigates to /completed (199ms)
+  ✓  11 [chromium] › tests/task1-verify.spec.ts:84:3 › Task 1: Project Scaffold › clicking nav-dashboard navigates back to / (283ms)
+  ✓  12 [chromium] › tests/task1-verify.spec.ts:93:3 › Task 1: Project Scaffold › dashboard nav link has aria-current="page" when on / (251ms)
+  ✓  13 [chromium] › tests/task1-verify.spec.ts:98:3 › Task 1: Project Scaffold › calendar nav link has aria-current="page" when on /calendar (294ms)
+  ✓  14 [chromium] › tests/task1-verify.spec.ts:106:3 › Task 1: Project Scaffold › Tailwind utility classes are applied in the DOM (219ms)
+
+  14 passed (4.7s)

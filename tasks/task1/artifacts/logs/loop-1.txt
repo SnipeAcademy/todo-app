@@ -1,0 +1,13 @@
+All three steps complete:
+
+**Step 1** — `tasks/task1/task1-assumptions.md` written with 27 assumptions covering environment, scaffolding strategy, dependency versions, TypeScript, routing, layout/styling, barrel files, and Playwright.
+
+**Step 2** — All 25 files in `allowed_paths` created:
+- Config layer: `package.json`, `vite.config.ts`, `tsconfig*.json`, `tailwind.config.js`, `postcss.config.js`, `index.html`, `playwright.config.ts`
+- Source: `src/main.tsx`, `src/App.tsx`, `src/index.css`, `src/vite-env.d.ts`
+- Components: `Layout.tsx` with `<nav>` + three `NavLink` elements (all `data-testid` attributes wired), `index.ts` barrel
+- Pages: `DashboardPage.tsx`, `CalendarPage.tsx`, `CompletedPage.tsx` (each with the required `data-testid`), `index.ts` barrel
+- Stub barrels: `context/`, `hooks/`, `utils/`, `services/`, `types/`
+- `npm install` and `npx playwright install --with-deps chromium` completed; `npx tsc --noEmit` exits 0; dev server returns HTTP 200 on port 5173.
+
+**Step 3** — `tasks/task1/task1-result.md` (human summary) and `tasks/task1/task1-result.json` (`status: "implemented"` + full `files_changed` list) written.
