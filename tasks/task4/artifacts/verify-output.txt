@@ -1,0 +1,18 @@
+
+Running 13 tests using 1 worker
+
+  ✓   1 [chromium] › tasks/task4/task4-verify.spec.ts:65:3 › Task 4: Priority System — Weekday › office todo shows High priority badge on weekday (825ms)
+  ✓   2 [chromium] › tasks/task4/task4-verify.spec.ts:71:3 › Task 4: Priority System — Weekday › personal todo shows Medium priority badge on weekday (467ms)
+  ✓   3 [chromium] › tasks/task4/task4-verify.spec.ts:76:3 › Task 4: Priority System — Weekday › family todo shows Low priority badge on weekday (429ms)
+  ✓   4 [chromium] › tasks/task4/task4-verify.spec.ts:81:3 › Task 4: Priority System — Weekday › High badge has red class (454ms)
+  ✓   5 [chromium] › tasks/task4/task4-verify.spec.ts:87:3 › Task 4: Priority System — Weekday › Medium badge has yellow class (465ms)
+  ✓   6 [chromium] › tasks/task4/task4-verify.spec.ts:93:3 › Task 4: Priority System — Weekday › Low badge has gray class (423ms)
+  ✓   7 [chromium] › tasks/task4/task4-verify.spec.ts:99:3 › Task 4: Priority System — Weekday › mode banner contains "Weekday" on weekday (286ms)
+  ✓   8 [chromium] › tasks/task4/task4-verify.spec.ts:103:3 › Task 4: Priority System — Weekday › weekday sort order: Office → Personal → Family (702ms)
+  ✓   9 [chromium] › tasks/task4/task4-verify.spec.ts:129:3 › Task 4: Priority System — Weekend › family todo shows High priority badge on weekend (429ms)
+  ✓  10 [chromium] › tasks/task4/task4-verify.spec.ts:134:3 › Task 4: Priority System — Weekend › office todo shows Low priority badge on weekend (462ms)
+  ✓  11 [chromium] › tasks/task4/task4-verify.spec.ts:139:3 › Task 4: Priority System — Weekend › mode banner contains "Weekend" on weekend (260ms)
+  ✓  12 [chromium] › tasks/task4/task4-verify.spec.ts:143:3 › Task 4: Priority System — Weekend › weekend sort order: Family → Personal → Office (674ms)
+  ✓  13 [chromium] › tasks/task4/task4-verify.spec.ts:168:3 › Task 4: Sort tiebreaker › same-priority todos sorted by dueDate ascending (541ms)
+
+  13 passed (7.2s)

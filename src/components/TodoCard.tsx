@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import type { Todo } from '../types';
+import PriorityBadge from './PriorityBadge';
 
 interface TodoCardProps {
   todo: Todo;
@@ -32,6 +33,7 @@ export default function TodoCard({ todo, onEdit, onDelete, onToggleComplete }: T
           >
             {todo.category.charAt(0).toUpperCase() + todo.category.slice(1)}
           </span>
+          <PriorityBadge category={todo.category} />
           <div className="mt-2 text-xs text-gray-500 space-y-0.5">
             <p>Work on: {todo.workOnDate}</p>
             <p>Due: {todo.dueDate}</p>

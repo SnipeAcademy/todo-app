@@ -1,0 +1,14 @@
+All done. Here's a summary of what was built:
+
+**Step 1 — Assumptions** written to `tasks/task4/task4-assumptions.md` (12 assumptions covering existing types, date-fns availability, sort strategy, and Date mock compatibility).
+
+**Step 2 — Implementation** (6 files, TypeScript clean):
+
+- `src/utils/priority.ts` — `getPriority` and `sortTodosByPriority` using `isWeekend` from date-fns, both accepting optional `referenceDate` defaulting to `new Date()`
+- `src/utils/index.ts` — re-exports the two new functions
+- `src/components/PriorityBadge.tsx` — `<span data-testid="priority-badge">` with red/yellow/gray Tailwind classes
+- `src/components/TodoCard.tsx` — renders `<PriorityBadge category={todo.category} />`
+- `src/components/index.ts` — exports `PriorityBadge`
+- `src/pages/DashboardPage.tsx` — sorts via `sortTodosByPriority` before `<TodoList>`, adds `data-testid="priority-mode-banner"` showing "Weekday Mode" / "Weekend Mode"
+
+**Step 3 — Result files** written to `tasks/task4/task4-result.md` and `tasks/task4/task4-result.json` with `status: "implemented"`.

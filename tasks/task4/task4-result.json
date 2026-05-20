@@ -1,0 +1,16 @@
+{
+  "task_id": "task4",
+  "status": "implemented",
+  "files_created": [
+    "src/utils/priority.ts",
+    "src/components/PriorityBadge.tsx"
+  ],
+  "files_modified": [
+    "src/utils/index.ts",
+    "src/components/TodoCard.tsx",
+    "src/components/index.ts",
+    "src/pages/DashboardPage.tsx"
+  ],
+  "files_deleted": [],
+  "notes": "Priority engine uses date-fns isWeekend; getPriority and sortTodosByPriority accept optional referenceDate defaulting to new Date(). PriorityBadge renders with red/yellow/gray Tailwind classes. DashboardPage sorts todos before render and shows priority-mode-banner."
+}

@@ -1,10 +1,11 @@
 import { useState } from 'react';
-import { format } from 'date-fns';
+import { format, isWeekend } from 'date-fns';
 import { useTodos } from '../context';
 import type { Todo } from '../types';
 import Modal from '../components/Modal';
 import TodoForm from '../components/TodoForm';
 import TodoList from '../components/TodoList';
+import { sortTodosByPriority } from '../utils';
 
 type AddTodoInput = Omit<Todo, 'id' | 'completed' | 'completedAt' | 'createdAt' | 'updatedAt'>;
 
@@ -37,7 +38,11 @@ export default function DashboardPage() {
     handleClose();
   }
 
-  const todayHeading = format(new Date(), 'EEEE, MMMM d, yyyy');
+  const today = new Date();
+  const todayHeading = format(today, 'EEEE, MMMM d, yyyy');
+  const isWeekendDay = isWeekend(today);
+  const modeLabel = isWeekendDay ? 'Weekend Mode' : 'Weekday Mode';
+  const sortedTodos = sortTodosByPriority(todos, today);
 
   return (
     <main data-testid="page-dashboard" className="p-6 max-w-2xl mx-auto">
@@ -55,8 +60,19 @@ export default function DashboardPage() {
         </button>
       </div>
 
+      <div
+        data-testid="priority-mode-banner"
+        className={`mb-4 px-4 py-2 rounded-md text-sm font-medium ${
+          isWeekendDay
+            ? 'bg-purple-50 text-purple-700 border border-purple-200'
+            : 'bg-blue-50 text-blue-700 border border-blue-200'
+        }`}
+      >
+        {modeLabel}
+      </div>
+
       <TodoList
-        todos={todos}
+        todos={sortedTodos}
         onEdit={handleOpenEdit}
         onDelete={deleteTodo}
         onToggleComplete={toggleComplete}
