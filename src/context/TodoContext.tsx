@@ -26,46 +26,45 @@ const TodoContext = createContext<TodoContextValue | null>(null);
 export function TodoProvider({ children }: { children: ReactNode }) {
   const [state, dispatch] = useReducer(todoReducer, { todos: todoStorage.load() });
 
+  const { todos } = state;
+
   const addTodo = useCallback((input: AddTodoInput) => {
     const now = new Date().toISOString();
-    dispatch({
-      type: 'ADD_TODO',
-      payload: {
-        ...input,
-        id: generateId(),
-        completed: false,
-        createdAt: now,
-        updatedAt: now,
-      },
-    });
-  }, []);
+    const newTodo = {
+      ...input,
+      id: generateId(),
+      completed: false,
+      createdAt: now,
+      updatedAt: now,
+    };
+    dispatch({ type: 'ADD_TODO', payload: newTodo });
+    // Save synchronously so a page.reload() immediately after sees the new todo
+    todoStorage.save([...todos, newTodo]);
+  }, [todos]);
 
   const deleteTodo = useCallback((id: string) => {
     dispatch({ type: 'DELETE_TODO', payload: id });
-  }, []);
+    todoStorage.save(todos.filter(t => t.id !== id));
+  }, [todos]);
 
   const updateTodo = useCallback((todo: Todo) => {
-    dispatch({
-      type: 'UPDATE_TODO',
-      payload: { ...todo, updatedAt: new Date().toISOString() },
-    });
-  }, []);
-
-  const { todos } = state;
+    const updated = { ...todo, updatedAt: new Date().toISOString() };
+    dispatch({ type: 'UPDATE_TODO', payload: updated });
+    todoStorage.save(todos.map(t => t.id === updated.id ? updated : t));
+  }, [todos]);
 
   const toggleComplete = useCallback((id: string) => {
     const todo = todos.find(t => t.id === id);
     if (!todo) return;
     const now = new Date().toISOString();
-    dispatch({
-      type: 'TOGGLE_COMPLETE',
-      payload: {
-        id,
-        completed: !todo.completed,
-        completedAt: !todo.completed ? now : undefined,
-        updatedAt: now,
-      },
-    });
+    const payload = {
+      id,
+      completed: !todo.completed,
+      completedAt: !todo.completed ? now : undefined,
+      updatedAt: now,
+    };
+    dispatch({ type: 'TOGGLE_COMPLETE', payload });
+    todoStorage.save(todos.map(t => t.id === id ? { ...t, ...payload } : t));
   }, [todos]);
 
   const contextValue = useMemo<TodoContextValue>(

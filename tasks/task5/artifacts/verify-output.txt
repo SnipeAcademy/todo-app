@@ -1,0 +1,20 @@
+
+Running 15 tests using 1 worker
+
+  ✓   1 [chromium] › tasks/task5/task5-verify.spec.ts:39:3 › Task 5: Calendar View › calendar grid is visible (472ms)
+  ✓   2 [chromium] › tasks/task5/task5-verify.spec.ts:43:3 › Task 5: Calendar View › calendar header shows current month and year (438ms)
+  ✓   3 [chromium] › tasks/task5/task5-verify.spec.ts:47:3 › Task 5: Calendar View › today's cell has data-testid=calendar-day-today (396ms)
+  ✓   4 [chromium] › tasks/task5/task5-verify.spec.ts:53:3 › Task 5: Calendar View › prev button navigates to previous month (429ms)
+  ✓   5 [chromium] › tasks/task5/task5-verify.spec.ts:58:3 › Task 5: Calendar View › next button navigates to next month (478ms)
+  ✓   6 [chromium] › tasks/task5/task5-verify.spec.ts:63:3 › Task 5: Calendar View › today button returns to current month after navigating away (461ms)
+  ✓   7 [chromium] › tasks/task5/task5-verify.spec.ts:70:3 › Task 5: Calendar View › navigating from January goes to December of previous year without crash (976ms)
+  ✓   8 [chromium] › tasks/task5/task5-verify.spec.ts:89:3 › Task 5: Calendar View › date cell shows a dot when a todo has that workOnDate (466ms)
+  ✓   9 [chromium] › tasks/task5/task5-verify.spec.ts:103:3 › Task 5: Calendar View › completed todo does not show a dot (498ms)
+  ✓  10 [chromium] › tasks/task5/task5-verify.spec.ts:123:3 › Task 5: Calendar View › clicking today cell opens the day panel (411ms)
+  ✓  11 [chromium] › tasks/task5/task5-verify.spec.ts:128:3 › Task 5: Calendar View › day panel shows the selected date in day-panel-date (421ms)
+  ✓  12 [chromium] › tasks/task5/task5-verify.spec.ts:135:3 › Task 5: Calendar View › day panel close button hides the panel (446ms)
+  ✓  13 [chromium] › tasks/task5/task5-verify.spec.ts:142:3 › Task 5: Calendar View › day panel shows todos for that date (479ms)
+  ✓  14 [chromium] › tasks/task5/task5-verify.spec.ts:156:3 › Task 5: Calendar View › day-panel-add-btn opens TodoForm with workOnDate pre-filled (437ms)
+  ✓  15 [chromium] › tasks/task5/task5-verify.spec.ts:166:3 › Task 5: Calendar View › panel sorts todos by priority for the selected date (not today) (491ms)
+
+  15 passed (10.0s)

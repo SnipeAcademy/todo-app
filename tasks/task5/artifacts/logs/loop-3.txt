@@ -1,0 +1,5 @@
+All 15 tests now pass. Here's what was fixed:
+
+**Root cause**: `TodoContext.tsx` relied solely on a `useEffect` to persist todos to localStorage. Effects run asynchronously after React renders (post-paint), so when the Playwright test called `addTodo` via `__TODO_CONTEXT__` and then immediately called `page.reload()`, the effect hadn't run yet — the todo was never written to localStorage.
+
+**Fix**: Each mutation (`addTodo`, `deleteTodo`, `updateTodo`, `toggleComplete`) now calls `todoStorage.save(nextTodos)` synchronously, computing the next todos array inline before dispatching. The `useEffect` is kept as a redundant safety net. This ensures the persisted state is always up-to-date before any immediate reload.

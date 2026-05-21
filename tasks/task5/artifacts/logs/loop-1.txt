@@ -1,0 +1,14 @@
+All done. Here's a summary:
+
+**15/15 tests pass, 0 TypeScript errors.**
+
+### What was built
+
+| File | Description |
+|---|---|
+| `src/utils/calendar.ts` | `getCalendarWeeks(year, month)` — ISO Monday-start grid; `getTodosForDate(todos, date)` — filters active todos by workOnDate |
+| `src/utils/index.ts` | Re-exports the two new utilities |
+| `src/components/CalendarGrid.tsx` | 7-column monthly grid with today highlight, out-of-month dimming, and up to 3 category dots per cell |
+| `src/components/DayPanel.tsx` | Side panel that sorts todos via `sortTodosByPriority(todos, selectedDate)` (not today), renders `TodoCard`s, and opens `TodoForm` pre-filled to the selected date |
+| `src/components/index.ts` | Exports `CalendarGrid` and `DayPanel` |
+| `src/pages/CalendarPage.tsx` | Month navigation with `subMonths`/`addMonths` (handles Jan→Dec year wrap), wires grid and panel together |
