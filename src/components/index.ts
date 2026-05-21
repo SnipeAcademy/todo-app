@@ -1,4 +1,5 @@
 export { default as CalendarGrid } from './CalendarGrid';
+export { default as CompletedTodoCard } from './CompletedTodoCard';
 export { default as DayPanel } from './DayPanel';
 export { default as Layout } from './Layout';
 export { default as Modal } from './Modal';

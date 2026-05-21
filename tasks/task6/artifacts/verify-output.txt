@@ -1,0 +1,21 @@
+
+Running 16 tests using 1 worker
+
+  ✓   1 [chromium] › tasks/task6/task6-verify.spec.ts:40:3 › Task 6: Completed Tasks Page › marking complete removes card from dashboard (627ms)
+  ✓   2 [chromium] › tasks/task6/task6-verify.spec.ts:52:3 › Task 6: Completed Tasks Page › completed todo appears on /completed (647ms)
+  ✓   3 [chromium] › tasks/task6/task6-verify.spec.ts:60:3 › Task 6: Completed Tasks Page › completed card title has line-through class (656ms)
+  ✓   4 [chromium] › tasks/task6/task6-verify.spec.ts:69:3 › Task 6: Completed Tasks Page › completed-date label is visible (672ms)
+  ✓   5 [chromium] › tasks/task6/task6-verify.spec.ts:79:3 › Task 6: Completed Tasks Page › restoring a todo removes it from /completed (645ms)
+  ✓   6 [chromium] › tasks/task6/task6-verify.spec.ts:90:3 › Task 6: Completed Tasks Page › restored todo reappears on dashboard as active (953ms)
+  ✓   7 [chromium] › tasks/task6/task6-verify.spec.ts:104:3 › Task 6: Completed Tasks Page › delete button shows inline confirmation (801ms)
+  ✓   8 [chromium] › tasks/task6/task6-verify.spec.ts:113:3 › Task 6: Completed Tasks Page › delete cancel keeps the todo (842ms)
+  ✓   9 [chromium] › tasks/task6/task6-verify.spec.ts:123:3 › Task 6: Completed Tasks Page › confirming delete permanently removes the todo (818ms)
+  ✓  10 [chromium] › tasks/task6/task6-verify.spec.ts:139:3 › Task 6: Completed Tasks Page › filter pills are visible on /completed (409ms)
+  ✓  11 [chromium] › tasks/task6/task6-verify.spec.ts:147:3 › Task 6: Completed Tasks Page › office filter shows only office completed todos (897ms)
+  ✓  12 [chromium] › tasks/task6/task6-verify.spec.ts:161:3 › Task 6: Completed Tasks Page › All filter shows all completed todos (839ms)
+  ✓  13 [chromium] › tasks/task6/task6-verify.spec.ts:174:3 › Task 6: Completed Tasks Page › empty state visible when filtered category has no todos (679ms)
+  ✓  14 [chromium] › tasks/task6/task6-verify.spec.ts:185:3 › Task 6: Completed Tasks Page › completed todos sorted most-recently-completed first (836ms)
+  ✓  15 [chromium] › tasks/task6/task6-verify.spec.ts:203:3 › Task 6: Completed Tasks Page › completed todo shows no dot on calendar (605ms)
+  ✓  16 [chromium] › tasks/task6/task6-verify.spec.ts:215:3 › Task 6: Completed Tasks Page › full flow: add 3 todos, complete 2, verify counts (941ms)
+
+  16 passed (14.9s)

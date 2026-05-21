@@ -42,7 +42,8 @@ export default function DashboardPage() {
   const todayHeading = format(today, 'EEEE, MMMM d, yyyy');
   const isWeekendDay = isWeekend(today);
   const modeLabel = isWeekendDay ? 'Weekend Mode' : 'Weekday Mode';
-  const sortedTodos = sortTodosByPriority(todos, today);
+  const activeTodos = todos.filter((t) => !t.completed);
+  const sortedTodos = sortTodosByPriority(activeTodos, today);
 
   return (
     <main data-testid="page-dashboard" className="p-6 max-w-2xl mx-auto">

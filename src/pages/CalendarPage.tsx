@@ -33,7 +33,8 @@ export default function CalendarPage() {
     setSelectedDate(null);
   }
 
-  const panelTodos = selectedDate ? getTodosForDate(todos, selectedDate) : [];
+  const activeTodos = todos.filter((t) => !t.completed);
+  const panelTodos = selectedDate ? getTodosForDate(activeTodos, selectedDate) : [];
 
   return (
     <main data-testid="page-calendar" className="p-6 flex flex-col">
@@ -72,7 +73,7 @@ export default function CalendarPage() {
           <CalendarGrid
             year={year}
             month={month}
-            todos={todos}
+            todos={activeTodos}
             selectedDate={selectedDate}
             onDayClick={handleDayClick}
           />

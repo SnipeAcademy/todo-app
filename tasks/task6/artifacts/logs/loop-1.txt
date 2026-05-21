@@ -1,0 +1,13 @@
+All 16/16 tests pass. Here's a summary of what was done:
+
+**New file:**
+- `src/components/CompletedTodoCard.tsx` — card with line-through title, completed date, Restore button, and inline Delete confirmation (same pattern as `TodoCard`)
+
+**Modified files:**
+- `src/pages/CompletedPage.tsx` — full implementation: filter pills (All/Office/Personal/Family) in local state, `completedAt` descending sort, empty state
+- `src/pages/DashboardPage.tsx` — filters `!t.completed` before sorting so completed cards vanish immediately
+- `src/pages/CalendarPage.tsx` — derives `activeTodos` and passes it to both `CalendarGrid` (no dots) and `getTodosForDate` (no DayPanel entries)
+- `src/components/index.ts` — exports `CompletedTodoCard`
+- `src/components/Layout.tsx` — adds a count badge on the Completed nav link (hidden when zero)
+
+`CalendarGrid.tsx` and `DayPanel.tsx` were not modified — filtering is done at the caller, which is the correct separation per the spec.

@@ -1,0 +1,1487 @@
+Reading additional input from stdin...
+OpenAI Codex v0.130.0
+--------
+workdir: /root/development/todo-app
+model: gpt-5.5
+provider: openai
+approval: never
+sandbox: read-only
+reasoning effort: none
+reasoning summaries: none
+session id: 019e4979-56da-7bd3-bf4d-2e1d6d120359
+--------
+user
+You are Codex reviewing a task implementation. Read the task spec (task6.md), what was built (task6-result.md), and the verify runner output above. Output tasks/task6/task6-review-feedback.md (human-readable notes) and tasks/task6/task6-review-feedback.json (machine-readable, strict schema). The json must contain: task_id, iteration, passed_review (bool), verify_exit_code (int), furthest_iteration (int), blocking_issues (array), non_blocking_notes (array), next_action (pass|retry|terminate).
+
+<stdin>
+# CONVENTIONS.md
+
+This file is the single source of truth for naming, structure, tooling, and behaviour rules across the entire project. It is passed as context to every Claude Code and Codex invocation.
+
+---
+
+## Naming
+
+- **Components**: PascalCase, one component per file.
+- **Files**: `kebab-case` for non-component files, `PascalCase` for component files.
+- **Test IDs**: `data-testid` attribute on every interactive and key display element, formatted as `kebab-case`.
+- **Context files**: Named `{Domain}Context.tsx`.
+- **Types**: Defined in `src/types/index.ts`.
+
+## Folder structure
+
+```
+todo-app/
+├── src/
+│   ├── components/        # Reusable UI components (PascalCase files)
+│   ├── context/           # React context providers ({Domain}Context.tsx)
+│   ├── hooks/             # Custom React hooks (useFoo.ts)
+│   ├── types/             # TypeScript type definitions (index.ts)
+│   ├── utils/             # Pure utility functions (kebab-case)
+│   ├── App.tsx            # Root application component
+│   └── main.tsx           # Entry point
+├── tests/                 # Playwright end-to-end tests
+├── tasks/                 # Task definitions and verification scripts
+├── public/                # Static assets
+├── package.json
+├── vite.config.ts
+├── tsconfig.json
+├── tailwind.config.js
+└── CONVENTIONS.md
+```
+
+## Error handling
+
+- Never swallow errors silently — always surface to the user or re-throw.
+- Use `try/catch` blocks around async operations with meaningful error messages.
+- Display user-facing errors in the UI; log developer-facing errors to console.
+- Do not use empty `catch {}` blocks.
+
+## Styling
+
+- **Tailwind CSS v3** is the only styling system.
+- No inline styles (`style={}` prop is forbidden).
+- No CSS Modules, no styled-components, no emotion, no other CSS-in-JS libraries.
+- Use Tailwind utility classes exclusively. Prefer composition over custom CSS.
+- When Tailwind utility classes are insufficient, use `@apply` in a CSS file — never fall back to inline styles.
+
+## Verification tooling
+
+- **Playwright** is the testing framework for end-to-end verification.
+- Tests use the `browser_app` protocol for browser automation.
+- Every interactive element and key display element must have a `data-testid` attribute.
+- Playwright tests must use explicit waits on element state (e.g., `locator.isEnabled()`, `locator.isVisible()`), never `waitForTimeout`.
+
+## Environment contract
+
+```json
+{
+  "setup_command": "npm install",
+  "dev_command": "npm run dev",
+  "verify_command": "npx playwright test",
+  "required_env_vars": []
+}
+```
+
+### Stack
+
+| Layer        | Technology                  |
+|-------------|-----------------------------|
+| Build       | Vite                        |
+| Framework   | React 18                    |
+| Language    | TypeScript (strict mode)    |
+| Routing     | react-router-dom v6         |
+| Styling     | Tailwind CSS v3             |
+| Dates       | date-fns                    |
+| State       | React context + useReducer   |
+| Storage     | localStorage only (no backend) |
+| Testing     | Playwright                   |
+
+## What Claude Code must never do
+
+1. **Install packages** not already declared in `package.json` unless the task's scope explicitly requires it.
+2. **Touch files** outside the task's declared `allowed_paths`.
+3. **Use inline styles** — all styling must go through Tailwind utility classes.
+4. **Mix styling systems** — no CSS Modules, no styled-components, no other CSS-in-JS.
+5. **Use the `any` type** in TypeScript — always define proper types or use `unknown`.
+6. **Swallow errors silently** — always surface to the user or re-throw.
+7. **Use `waitForTimeout`** in Playwright tests — use explicit waits on element state instead.
+# Task 6: Completed Tasks Page
+
+## Objective
+Move completed todos out of all active views (Dashboard and Calendar) and into a dedicated Completed page. Allow the founder to review, restore, or permanently delete completed tasks, with filtering by category.
+
+## Scope
+- `<CompletedTodoCard>` component (shows completed todo with Restore and Delete actions)
+- Update `<CompletedPage>` with category filter pills, sorted list, and empty state
+- Update `<DashboardPage>` to filter out `completed === true` todos (mark complete → card disappears)
+- Update `<CalendarGrid>` and `<DayPanel>` to receive only active todos (no dots or panel entries for completed todos)
+- Optional: update `<Layout>` nav link to show count badge on "Completed"
+
+## Out of scope
+- No new data fields — `completed` and `completedAt` already exist from task 2
+- Do not modify the data layer (context, reducer, types, localStorage service)
+- Do not add pagination or search to the Completed page
+
+## Acceptance criteria
+- [ ] On the Dashboard, clicking `data-testid="todo-card-complete-btn"` removes the card from view immediately
+- [ ] The completed todo appears on `/completed` as `data-testid="completed-todo-card"`
+- [ ] `data-testid="completed-todo-card"` title element has a CSS `line-through` style applied
+- [ ] `data-testid="completed-todo-completed-date"` shows the date it was completed
+- [ ] Clicking `data-testid="completed-todo-restore-btn"` removes the card from `/completed`
+- [ ] Restored todo reappears on Dashboard as an active card
+- [ ] Clicking `data-testid="completed-todo-delete-btn"` shows `data-testid="completed-todo-delete-confirm"`
+- [ ] Confirming the delete permanently removes the todo from `/completed` and from localStorage
+- [ ] `data-testid="completed-filter-all"` shows all completed todos
+- [ ] `data-testid="completed-filter-office"` shows only office completed todos
+- [ ] `data-testid="completed-filter-personal"` shows only personal completed todos
+- [ ] `data-testid="completed-filter-family"` shows only family completed todos
+- [ ] `data-testid="completed-empty-state"` is visible when no completed todos exist (or when filtered to zero)
+- [ ] Completed todos are sorted by `completedAt` descending (most recently completed first)
+- [ ] `/calendar` shows no dot for a completed todo's `workOnDate`
+
+## Dependencies
+- task5 must be complete (CalendarGrid and DayPanel exist and accept active-only todos)
+
+## File and folder targets
+- Create: `src/components/CompletedTodoCard.tsx`
+- Modify: `src/components/index.ts`
+- Modify: `src/pages/CompletedPage.tsx`
+- Modify: `src/pages/DashboardPage.tsx` (add `completed === false` filter before rendering)
+- Modify: `src/components/CalendarGrid.tsx` (already accepts todos prop — ensure completed are filtered by the caller)
+- Modify: `src/components/DayPanel.tsx` (same — ensure completed are filtered by the caller)
+- Modify: `src/pages/CalendarPage.tsx` (pass only active todos to grid and panel)
+- Optionally modify: `src/components/Layout.tsx` (add count badge)
+- Do not touch: `src/context/`, `src/services/`, `src/types/`, `src/utils/`
+
+## Design constraints
+- Follow `CONVENTIONS.md` for naming and styling
+- Do not use browser `confirm()` for delete — use inline confirmation matching the pattern in `<TodoCard>`
+- Title in `<CompletedTodoCard>` must have Tailwind class `line-through`
+- Category badge colours must match `<TodoCard>` (office=blue, personal=green, family=purple)
+- Completed page sort: `completedAt` descending — use `date-fns` `compareDesc` or string sort (ISO strings compare correctly)
+- Filter state is local component state — do not persist to localStorage
+
+### Required data-testid attributes
+| Element | data-testid |
+|---|---|
+| Completed todo card | `completed-todo-card` |
+| Completed date label | `completed-todo-completed-date` |
+| Restore button | `completed-todo-restore-btn` |
+| Delete button | `completed-todo-delete-btn` |
+| Delete confirmation | `completed-todo-delete-confirm` |
+| Delete cancel | `completed-todo-delete-cancel` |
+| Empty state | `completed-empty-state` |
+| "All" filter pill | `completed-filter-all` |
+| "Office" filter pill | `completed-filter-office` |
+| "Personal" filter pill | `completed-filter-personal` |
+| "Family" filter pill | `completed-filter-family` |
+
+## Context
+This is the final task. It completes the separation of active and archived work. The founder should see a clean Dashboard with only actionable todos, and have a separate archive to review what was accomplished. The Completed page is a historical record — restore is an escape hatch, not a primary workflow.
+# Task 6 Result
+
+## Status: COMPLETE
+
+All 16 Playwright acceptance tests pass.
+
+## What was implemented
+
+### New file
+- **`src/components/CompletedTodoCard.tsx`** — Displays a completed todo with a line-through title, category badge, completed date, and inline Restore / Delete actions. Delete uses the same inline confirmation pattern as `TodoCard` (local `showConfirm` state, no `browser.confirm()`).
+
+### Modified files
+- **`src/components/index.ts`** — Added export for `CompletedTodoCard`.
+- **`src/pages/CompletedPage.tsx`** — Full implementation: category filter pills (All / Office / Personal / Family) using local state, list sorted by `completedAt` descending, empty state, and calls to `toggleComplete` (restore) and `deleteTodo` (permanent delete).
+- **`src/pages/DashboardPage.tsx`** — Filters `todos` to `!t.completed` before sorting, so completed cards disappear immediately on toggle.
+- **`src/pages/CalendarPage.tsx`** — Derives `activeTodos = todos.filter(!t.completed)` and passes it to both `CalendarGrid` (dots) and `getTodosForDate` (panel), so completed todos produce no calendar dots and do not appear in the DayPanel.
+- **`src/components/Layout.tsx`** — Added optional count badge on the "Completed" nav link; hidden when count is zero.
+
+## CalendarGrid and DayPanel
+Neither component was modified. The filtering is applied at the caller (`CalendarPage`) which is the correct separation per the task spec.
+
+## Test results
+```
+16/16 passed (13.6s)
+```
+
+| Test | Result |
+|---|---|
+| marking complete removes card from dashboard | ✓ |
+| completed todo appears on /completed | ✓ |
+| completed card title has line-through class | ✓ |
+| completed-date label is visible | ✓ |
+| restoring a todo removes it from /completed | ✓ |
+| restored todo reappears on dashboard as active | ✓ |
+| delete button shows inline confirmation | ✓ |
+| delete cancel keeps the todo | ✓ |
+| confirming delete permanently removes the todo | ✓ |
+| filter pills are visible on /completed | ✓ |
+| office filter shows only office completed todos | ✓ |
+| All filter shows all completed todos | ✓ |
+| empty state visible when filtered category has no todos | ✓ |
+| completed todos sorted most-recently-completed first | ✓ |
+| completed todo shows no dot on calendar | ✓ |
+| full flow: add 3 todos, complete 2, verify counts | ✓ |
+
+Running 16 tests using 1 worker
+
+  ✓   1 [chromium] › tasks/task6/task6-verify.spec.ts:40:3 › Task 6: Completed Tasks Page › marking complete removes card from dashboard (627ms)
+  ✓   2 [chromium] › tasks/task6/task6-verify.spec.ts:52:3 › Task 6: Completed Tasks Page › completed todo appears on /completed (647ms)
+  ✓   3 [chromium] › tasks/task6/task6-verify.spec.ts:60:3 › Task 6: Completed Tasks Page › completed card title has line-through class (656ms)
+  ✓   4 [chromium] › tasks/task6/task6-verify.spec.ts:69:3 › Task 6: Completed Tasks Page › completed-date label is visible (672ms)
+  ✓   5 [chromium] › tasks/task6/task6-verify.spec.ts:79:3 › Task 6: Completed Tasks Page › restoring a todo removes it from /completed (645ms)
+  ✓   6 [chromium] › tasks/task6/task6-verify.spec.ts:90:3 › Task 6: Completed Tasks Page › restored todo reappears on dashboard as active (953ms)
+  ✓   7 [chromium] › tasks/task6/task6-verify.spec.ts:104:3 › Task 6: Completed Tasks Page › delete button shows inline confirmation (801ms)
+  ✓   8 [chromium] › tasks/task6/task6-verify.spec.ts:113:3 › Task 6: Completed Tasks Page › delete cancel keeps the todo (842ms)
+  ✓   9 [chromium] › tasks/task6/task6-verify.spec.ts:123:3 › Task 6: Completed Tasks Page › confirming delete permanently removes the todo (818ms)
+  ✓  10 [chromium] › tasks/task6/task6-verify.spec.ts:139:3 › Task 6: Completed Tasks Page › filter pills are visible on /completed (409ms)
+  ✓  11 [chromium] › tasks/task6/task6-verify.spec.ts:147:3 › Task 6: Completed Tasks Page › office filter shows only office completed todos (897ms)
+  ✓  12 [chromium] › tasks/task6/task6-verify.spec.ts:161:3 › Task 6: Completed Tasks Page › All filter shows all completed todos (839ms)
+  ✓  13 [chromium] › tasks/task6/task6-verify.spec.ts:174:3 › Task 6: Completed Tasks Page › empty state visible when filtered category has no todos (679ms)
+  ✓  14 [chromium] › tasks/task6/task6-verify.spec.ts:185:3 › Task 6: Completed Tasks Page › completed todos sorted most-recently-completed first (836ms)
+  ✓  15 [chromium] › tasks/task6/task6-verify.spec.ts:203:3 › Task 6: Completed Tasks Page › completed todo shows no dot on calendar (605ms)
+  ✓  16 [chromium] › tasks/task6/task6-verify.spec.ts:215:3 › Task 6: Completed Tasks Page › full flow: add 3 todos, complete 2, verify counts (941ms)
+
+  16 passed (14.9s)
+</stdin>
+warning: Codex could not find bubblewrap on PATH. Install bubblewrap with your OS package manager. See the sandbox prerequisites: https://developers.openai.com/codex/concepts/sandboxing#prerequisites. Codex will use the bundled bubblewrap in the meantime.
+codex
+I’ll inspect the task files and implementation before writing the review outputs. Since the workspace is read-only in this session, I’ll verify whether writes are possible; if not, I’ll provide the exact file contents for you to place.
+exec
+/bin/bash -lc 'pwd && rg --files tasks/task6 src | sort' in /root/development/todo-app
+ succeeded in 0ms:
+/root/development/todo-app
+src/App.tsx
+src/components/CalendarGrid.tsx
+src/components/CompletedTodoCard.tsx
+src/components/DayPanel.tsx
+src/components/Layout.tsx
+src/components/Modal.tsx
+src/components/PriorityBadge.tsx
+src/components/TodoCard.tsx
+src/components/TodoForm.tsx
+src/components/TodoList.tsx
+src/components/index.ts
+src/context/TodoContext.tsx
+src/context/index.ts
+src/context/todoReducer.ts
+src/hooks/index.ts
+src/index.css
+src/main.tsx
+src/pages/CalendarPage.tsx
+src/pages/CompletedPage.tsx
+src/pages/DashboardPage.tsx
+src/pages/index.ts
+src/services/index.ts
+src/services/todoStorage.ts
+src/types/index.ts
+src/utils/calendar.ts
+src/utils/generateId.ts
+src/utils/index.ts
+src/utils/priority.ts
+src/vite-env.d.ts
+tasks/task6/artifacts/logs/codex-1.txt
+tasks/task6/artifacts/logs/loop-1.txt
+tasks/task6/artifacts/verify-output.txt
+tasks/task6/task6-assumptions.md
+tasks/task6/task6-result.json
+tasks/task6/task6-result.md
+tasks/task6/task6-verify.spec.ts
+tasks/task6/task6.manifest.json
+tasks/task6/task6.md
+
+exec
+/bin/bash -lc "sed -n '1,240p' tasks/task6/task6.md" in /root/development/todo-app
+ succeeded in 0ms:
+# Task 6: Completed Tasks Page
+
+## Objective
+Move completed todos out of all active views (Dashboard and Calendar) and into a dedicated Completed page. Allow the founder to review, restore, or permanently delete completed tasks, with filtering by category.
+
+## Scope
+- `<CompletedTodoCard>` component (shows completed todo with Restore and Delete actions)
+- Update `<CompletedPage>` with category filter pills, sorted list, and empty state
+- Update `<DashboardPage>` to filter out `completed === true` todos (mark complete → card disappears)
+- Update `<CalendarGrid>` and `<DayPanel>` to receive only active todos (no dots or panel entries for completed todos)
+- Optional: update `<Layout>` nav link to show count badge on "Completed"
+
+## Out of scope
+- No new data fields — `completed` and `completedAt` already exist from task 2
+- Do not modify the data layer (context, reducer, types, localStorage service)
+- Do not add pagination or search to the Completed page
+
+## Acceptance criteria
+- [ ] On the Dashboard, clicking `data-testid="todo-card-complete-btn"` removes the card from view immediately
+- [ ] The completed todo appears on `/completed` as `data-testid="completed-todo-card"`
+- [ ] `data-testid="completed-todo-card"` title element has a CSS `line-through` style applied
+- [ ] `data-testid="completed-todo-completed-date"` shows the date it was completed
+- [ ] Clicking `data-testid="completed-todo-restore-btn"` removes the card from `/completed`
+- [ ] Restored todo reappears on Dashboard as an active card
+- [ ] Clicking `data-testid="completed-todo-delete-btn"` shows `data-testid="completed-todo-delete-confirm"`
+- [ ] Confirming the delete permanently removes the todo from `/completed` and from localStorage
+- [ ] `data-testid="completed-filter-all"` shows all completed todos
+- [ ] `data-testid="completed-filter-office"` shows only office completed todos
+- [ ] `data-testid="completed-filter-personal"` shows only personal completed todos
+- [ ] `data-testid="completed-filter-family"` shows only family completed todos
+- [ ] `data-testid="completed-empty-state"` is visible when no completed todos exist (or when filtered to zero)
+- [ ] Completed todos are sorted by `completedAt` descending (most recently completed first)
+- [ ] `/calendar` shows no dot for a completed todo's `workOnDate`
+
+## Dependencies
+- task5 must be complete (CalendarGrid and DayPanel exist and accept active-only todos)
+
+## File and folder targets
+- Create: `src/components/CompletedTodoCard.tsx`
+- Modify: `src/components/index.ts`
+- Modify: `src/pages/CompletedPage.tsx`
+- Modify: `src/pages/DashboardPage.tsx` (add `completed === false` filter before rendering)
+- Modify: `src/components/CalendarGrid.tsx` (already accepts todos prop — ensure completed are filtered by the caller)
+- Modify: `src/components/DayPanel.tsx` (same — ensure completed are filtered by the caller)
+- Modify: `src/pages/CalendarPage.tsx` (pass only active todos to grid and panel)
+- Optionally modify: `src/components/Layout.tsx` (add count badge)
+- Do not touch: `src/context/`, `src/services/`, `src/types/`, `src/utils/`
+
+## Design constraints
+- Follow `CONVENTIONS.md` for naming and styling
+- Do not use browser `confirm()` for delete — use inline confirmation matching the pattern in `<TodoCard>`
+- Title in `<CompletedTodoCard>` must have Tailwind class `line-through`
+- Category badge colours must match `<TodoCard>` (office=blue, personal=green, family=purple)
+- Completed page sort: `completedAt` descending — use `date-fns` `compareDesc` or string sort (ISO strings compare correctly)
+- Filter state is local component state — do not persist to localStorage
+
+### Required data-testid attributes
+| Element | data-testid |
+|---|---|
+| Completed todo card | `completed-todo-card` |
+| Completed date label | `completed-todo-completed-date` |
+| Restore button | `completed-todo-restore-btn` |
+| Delete button | `completed-todo-delete-btn` |
+| Delete confirmation | `completed-todo-delete-confirm` |
+| Delete cancel | `completed-todo-delete-cancel` |
+| Empty state | `completed-empty-state` |
+| "All" filter pill | `completed-filter-all` |
+| "Office" filter pill | `completed-filter-office` |
+| "Personal" filter pill | `completed-filter-personal` |
+| "Family" filter pill | `completed-filter-family` |
+
+## Context
+This is the final task. It completes the separation of active and archived work. The founder should see a clean Dashboard with only actionable todos, and have a separate archive to review what was accomplished. The Completed page is a historical record — restore is an escape hatch, not a primary workflow.
+
+exec
+/bin/bash -lc "sed -n '1,260p' tasks/task6/task6-result.md" in /root/development/todo-app
+ succeeded in 0ms:
+# Task 6 Result
+
+## Status: COMPLETE
+
+All 16 Playwright acceptance tests pass.
+
+## What was implemented
+
+### New file
+- **`src/components/CompletedTodoCard.tsx`** — Displays a completed todo with a line-through title, category badge, completed date, and inline Restore / Delete actions. Delete uses the same inline confirmation pattern as `TodoCard` (local `showConfirm` state, no `browser.confirm()`).
+
+### Modified files
+- **`src/components/index.ts`** — Added export for `CompletedTodoCard`.
+- **`src/pages/CompletedPage.tsx`** — Full implementation: category filter pills (All / Office / Personal / Family) using local state, list sorted by `completedAt` descending, empty state, and calls to `toggleComplete` (restore) and `deleteTodo` (permanent delete).
+- **`src/pages/DashboardPage.tsx`** — Filters `todos` to `!t.completed` before sorting, so completed cards disappear immediately on toggle.
+- **`src/pages/CalendarPage.tsx`** — Derives `activeTodos = todos.filter(!t.completed)` and passes it to both `CalendarGrid` (dots) and `getTodosForDate` (panel), so completed todos produce no calendar dots and do not appear in the DayPanel.
+- **`src/components/Layout.tsx`** — Added optional count badge on the "Completed" nav link; hidden when count is zero.
+
+## CalendarGrid and DayPanel
+Neither component was modified. The filtering is applied at the caller (`CalendarPage`) which is the correct separation per the task spec.
+
+## Test results
+```
+16/16 passed (13.6s)
+```
+
+| Test | Result |
+|---|---|
+| marking complete removes card from dashboard | ✓ |
+| completed todo appears on /completed | ✓ |
+| completed card title has line-through class | ✓ |
+| completed-date label is visible | ✓ |
+| restoring a todo removes it from /completed | ✓ |
+| restored todo reappears on dashboard as active | ✓ |
+| delete button shows inline confirmation | ✓ |
+| delete cancel keeps the todo | ✓ |
+| confirming delete permanently removes the todo | ✓ |
+| filter pills are visible on /completed | ✓ |
+| office filter shows only office completed todos | ✓ |
+| All filter shows all completed todos | ✓ |
+| empty state visible when filtered category has no todos | ✓ |
+| completed todos sorted most-recently-completed first | ✓ |
+| completed todo shows no dot on calendar | ✓ |
+| full flow: add 3 todos, complete 2, verify counts | ✓ |
+
+codex
+The spec and result file line up at a high level. I’m reading the touched source now to check for scope violations, missing test IDs, styling constraints, and any behavior the verify suite may not cover.
+exec
+/bin/bash -lc "sed -n '1,260p' src/components/CompletedTodoCard.tsx" in /root/development/todo-app
+ succeeded in 0ms:
+import { useState } from 'react';
+import { format, parseISO } from 'date-fns';
+import type { Todo } from '../types';
+
+interface CompletedTodoCardProps {
+  todo: Todo;
+  onRestore: (id: string) => void;
+  onDelete: (id: string) => void;
+}
+
+const categoryBadgeClass: Record<string, string> = {
+  office: 'bg-blue-100 text-blue-800',
+  personal: 'bg-green-100 text-green-800',
+  family: 'bg-purple-100 text-purple-800',
+};
+
+export default function CompletedTodoCard({ todo, onRestore, onDelete }: CompletedTodoCardProps) {
+  const [showConfirm, setShowConfirm] = useState(false);
+
+  const completedDate = todo.completedAt
+    ? format(parseISO(todo.completedAt), 'MMM d, yyyy')
+    : 'Unknown date';
+
+  return (
+    <div data-testid="completed-todo-card" className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
+      <div className="flex items-start gap-3">
+        <div className="flex-1 min-w-0">
+          <span data-testid="completed-todo-card-title" className="text-base font-medium text-gray-400 line-through block">
+            {todo.title}
+          </span>
+          <span
+            className={`inline-block mt-1 px-2 py-0.5 rounded-full text-xs font-medium ${
+              categoryBadgeClass[todo.category] ?? 'bg-gray-100 text-gray-800'
+            }`}
+          >
+            {todo.category.charAt(0).toUpperCase() + todo.category.slice(1)}
+          </span>
+          <p
+            data-testid="completed-todo-completed-date"
+            className="mt-1.5 text-xs text-gray-400"
+          >
+            Completed {completedDate}
+          </p>
+        </div>
+        <div className="flex gap-1 shrink-0">
+          <button
+            data-testid="completed-todo-restore-btn"
+            onClick={() => onRestore(todo.id)}
+            className="px-2 py-1 text-xs font-medium text-green-700 bg-green-50 border border-green-200 rounded hover:bg-green-100"
+          >
+            Restore
+          </button>
+          <button
+            data-testid="completed-todo-delete-btn"
+            onClick={() => setShowConfirm(true)}
+            className="px-2 py-1 text-xs font-medium text-red-700 bg-red-50 border border-red-200 rounded hover:bg-red-100"
+          >
+            Delete
+          </button>
+        </div>
+      </div>
+
+      {showConfirm && (
+        <div className="mt-3 pt-3 border-t border-gray-100 flex items-center gap-2">
+          <span className="text-sm text-gray-600 flex-1">Permanently delete this todo?</span>
+          <button
+            data-testid="completed-todo-delete-cancel"
+            onClick={() => setShowConfirm(false)}
+            className="px-3 py-1 text-xs font-medium text-gray-700 bg-white border border-gray-300 rounded hover:bg-gray-50"
+          >
+            Cancel
+          </button>
+          <button
+            data-testid="completed-todo-delete-confirm"
+            onClick={() => onDelete(todo.id)}
+            className="px-3 py-1 text-xs font-medium text-white bg-red-600 rounded hover:bg-red-700"
+          >
+            Delete
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+exec
+/bin/bash -lc "sed -n '1,280p' src/pages/CompletedPage.tsx" in /root/development/todo-app
+ succeeded in 0ms:
+import { useState } from 'react';
+import { useTodos } from '../context';
+import type { Category } from '../types';
+import CompletedTodoCard from '../components/CompletedTodoCard';
+
+type FilterValue = 'all' | Category;
+
+const FILTERS: { label: string; value: FilterValue; testId: string }[] = [
+  { label: 'All', value: 'all', testId: 'completed-filter-all' },
+  { label: 'Office', value: 'office', testId: 'completed-filter-office' },
+  { label: 'Personal', value: 'personal', testId: 'completed-filter-personal' },
+  { label: 'Family', value: 'family', testId: 'completed-filter-family' },
+];
+
+export default function CompletedPage() {
+  const { todos, toggleComplete, deleteTodo } = useTodos();
+  const [filter, setFilter] = useState<FilterValue>('all');
+
+  const completedTodos = todos
+    .filter((t) => t.completed)
+    .sort((a, b) => {
+      const aDate = a.completedAt ?? '';
+      const bDate = b.completedAt ?? '';
+      return bDate.localeCompare(aDate);
+    });
+
+  const filtered =
+    filter === 'all' ? completedTodos : completedTodos.filter((t) => t.category === filter);
+
+  return (
+    <main data-testid="page-completed" className="p-6 max-w-2xl mx-auto">
+      <div className="mb-6">
+        <h1 className="text-2xl font-bold text-gray-900">Completed</h1>
+        <p className="text-sm text-gray-500 mt-0.5">{completedTodos.length} completed todo{completedTodos.length !== 1 ? 's' : ''}</p>
+      </div>
+
+      <div className="flex gap-2 mb-6 flex-wrap">
+        {FILTERS.map(({ label, value, testId }) => (
+          <button
+            key={value}
+            data-testid={testId}
+            onClick={() => setFilter(value)}
+            className={`px-3 py-1.5 rounded-full text-sm font-medium border transition-colors ${
+              filter === value
+                ? 'bg-blue-600 text-white border-blue-600'
+                : 'text-gray-600 bg-white border-gray-300 hover:bg-gray-50'
+            }`}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {filtered.length === 0 ? (
+        <div
+          data-testid="completed-empty-state"
+          className="text-center py-12 text-gray-400"
+        >
+          <p className="text-sm">No completed todos{filter !== 'all' ? ` in ${filter}` : ''} yet.</p>
+        </div>
+      ) : (
+        <div className="flex flex-col gap-3">
+          {filtered.map((todo) => (
+            <CompletedTodoCard
+              key={todo.id}
+              todo={todo}
+              onRestore={toggleComplete}
+              onDelete={deleteTodo}
+            />
+          ))}
+        </div>
+      )}
+    </main>
+  );
+}
+
+exec
+/bin/bash -lc "sed -n '1,240p' src/pages/DashboardPage.tsx" in /root/development/todo-app
+ succeeded in 0ms:
+import { useState } from 'react';
+import { format, isWeekend } from 'date-fns';
+import { useTodos } from '../context';
+import type { Todo } from '../types';
+import Modal from '../components/Modal';
+import TodoForm from '../components/TodoForm';
+import TodoList from '../components/TodoList';
+import { sortTodosByPriority } from '../utils';
+
+type AddTodoInput = Omit<Todo, 'id' | 'completed' | 'completedAt' | 'createdAt' | 'updatedAt'>;
+
+export default function DashboardPage() {
+  const { todos, addTodo, updateTodo, deleteTodo, toggleComplete } = useTodos();
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingTodo, setEditingTodo] = useState<Todo | null>(null);
+
+  function handleOpenAdd() {
+    setEditingTodo(null);
+    setIsModalOpen(true);
+  }
+
+  function handleOpenEdit(todo: Todo) {
+    setEditingTodo(todo);
+    setIsModalOpen(true);
+  }
+
+  function handleClose() {
+    setIsModalOpen(false);
+    setEditingTodo(null);
+  }
+
+  function handleSubmit(values: AddTodoInput) {
+    if (editingTodo) {
+      updateTodo({ ...editingTodo, ...values });
+    } else {
+      addTodo(values);
+    }
+    handleClose();
+  }
+
+  const today = new Date();
+  const todayHeading = format(today, 'EEEE, MMMM d, yyyy');
+  const isWeekendDay = isWeekend(today);
+  const modeLabel = isWeekendDay ? 'Weekend Mode' : 'Weekday Mode';
+  const activeTodos = todos.filter((t) => !t.completed);
+  const sortedTodos = sortTodosByPriority(activeTodos, today);
+
+  return (
+    <main data-testid="page-dashboard" className="p-6 max-w-2xl mx-auto">
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
+          <p className="text-sm text-gray-500 mt-0.5">{todayHeading}</p>
+        </div>
+        <button
+          data-testid="add-todo-btn"
+          onClick={handleOpenAdd}
+          className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
+        >
+          + Add Todo
+        </button>
+      </div>
+
+      <div
+        data-testid="priority-mode-banner"
+        className={`mb-4 px-4 py-2 rounded-md text-sm font-medium ${
+          isWeekendDay
+            ? 'bg-purple-50 text-purple-700 border border-purple-200'
+            : 'bg-blue-50 text-blue-700 border border-blue-200'
+        }`}
+      >
+        {modeLabel}
+      </div>
+
+      <TodoList
+        todos={sortedTodos}
+        onEdit={handleOpenEdit}
+        onDelete={deleteTodo}
+        onToggleComplete={toggleComplete}
+      />
+
+      <Modal isOpen={isModalOpen} onClose={handleClose}>
+        <h2 className="text-lg font-semibold text-gray-900 mb-4">
+          {editingTodo ? 'Edit Todo' : 'New Todo'}
+        </h2>
+        <TodoForm
+          key={editingTodo?.id ?? 'new'}
+          initialValues={editingTodo ?? undefined}
+          onSubmit={handleSubmit}
+          onCancel={handleClose}
+        />
+      </Modal>
+    </main>
+  );
+}
+
+exec
+/bin/bash -lc "sed -n '1,260p' src/pages/CalendarPage.tsx" in /root/development/todo-app
+ succeeded in 0ms:
+import { useState } from 'react';
+import { format, addMonths, subMonths } from 'date-fns';
+import { useTodos } from '../context';
+import CalendarGrid from '../components/CalendarGrid';
+import DayPanel from '../components/DayPanel';
+import { getTodosForDate } from '../utils';
+
+export default function CalendarPage() {
+  const { todos } = useTodos();
+  const [viewDate, setViewDate] = useState(new Date());
+  const [selectedDate, setSelectedDate] = useState<Date | null>(null);
+
+  const year = viewDate.getFullYear();
+  const month = viewDate.getMonth();
+
+  function goToPrev() {
+    setViewDate((d) => subMonths(d, 1));
+  }
+
+  function goToNext() {
+    setViewDate((d) => addMonths(d, 1));
+  }
+
+  function goToToday() {
+    setViewDate(new Date());
+  }
+
+  function handleDayClick(date: Date) {
+    setSelectedDate(date);
+  }
+
+  function handleClosePanel() {
+    setSelectedDate(null);
+  }
+
+  const activeTodos = todos.filter((t) => !t.completed);
+  const panelTodos = selectedDate ? getTodosForDate(activeTodos, selectedDate) : [];
+
+  return (
+    <main data-testid="page-calendar" className="p-6 flex flex-col">
+      <div className="flex items-center gap-3 mb-4">
+        <button
+          data-testid="calendar-prev-btn"
+          onClick={goToPrev}
+          className="px-3 py-1.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50"
+        >
+          ‹
+        </button>
+        <h1
+          data-testid="calendar-header"
+          className="text-xl font-bold text-gray-900 min-w-[160px] text-center"
+        >
+          {format(viewDate, 'MMMM yyyy')}
+        </h1>
+        <button
+          data-testid="calendar-next-btn"
+          onClick={goToNext}
+          className="px-3 py-1.5 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50"
+        >
+          ›
+        </button>
+        <button
+          data-testid="calendar-today-btn"
+          onClick={goToToday}
+          className="ml-2 px-3 py-1.5 text-sm font-medium text-blue-600 bg-blue-50 border border-blue-200 rounded-md hover:bg-blue-100"
+        >
+          Today
+        </button>
+      </div>
+
+      <div className="flex gap-4">
+        <div className="flex-1">
+          <CalendarGrid
+            year={year}
+            month={month}
+            todos={activeTodos}
+            selectedDate={selectedDate}
+            onDayClick={handleDayClick}
+          />
+        </div>
+
+        {selectedDate && (
+          <DayPanel
+            date={selectedDate}
+            todos={panelTodos}
+            onClose={handleClosePanel}
+          />
+        )}
+      </div>
+    </main>
+  );
+}
+
+exec
+/bin/bash -lc 'git status --short' in /root/development/todo-app
+ succeeded in 0ms:
+ M src/components/Layout.tsx
+ M src/components/index.ts
+ M src/pages/CalendarPage.tsx
+ M src/pages/CompletedPage.tsx
+ M src/pages/DashboardPage.tsx
+?? src/components/CompletedTodoCard.tsx
+?? tasks/task6/artifacts/logs/
+?? tasks/task6/artifacts/verify-output.txt
+?? tasks/task6/task6-assumptions.md
+?? tasks/task6/task6-result.json
+?? tasks/task6/task6-result.md
+
+exec
+/bin/bash -lc 'git diff -- src/components/CompletedTodoCard.tsx src/pages/CompletedPage.tsx src/pages/DashboardPage.tsx src/pages/CalendarPage.tsx src/components/Layout.tsx src/components/index.ts' in /root/development/todo-app
+ succeeded in 0ms:
+diff --git a/src/components/Layout.tsx b/src/components/Layout.tsx
+index 1419fa1..eed3ee9 100644
+--- a/src/components/Layout.tsx
++++ b/src/components/Layout.tsx
+@@ -1,4 +1,5 @@
+ import { NavLink, Outlet } from 'react-router-dom'
++import { useTodos } from '../context'
+ 
+ const navLinkClass = ({ isActive }: { isActive: boolean }) =>
+   `px-4 py-2 rounded text-sm font-medium transition-colors ${
+@@ -8,6 +9,9 @@ const navLinkClass = ({ isActive }: { isActive: boolean }) =>
+   }`
+ 
+ export default function Layout() {
++  const { todos } = useTodos()
++  const completedCount = todos.filter((t) => t.completed).length
++
+   return (
+     <div className="min-h-screen bg-gray-50">
+       <nav className="bg-white border-b border-gray-200 px-4 py-3 flex gap-2">
+@@ -19,6 +23,11 @@ export default function Layout() {
+         </NavLink>
+         <NavLink to="/completed" data-testid="nav-completed" className={navLinkClass}>
+           Completed
++          {completedCount > 0 && (
++            <span className="ml-1.5 inline-flex items-center justify-center px-1.5 py-0.5 rounded-full text-xs font-medium bg-gray-200 text-gray-700">
++              {completedCount}
++            </span>
++          )}
+         </NavLink>
+       </nav>
+       <Outlet />
+diff --git a/src/components/index.ts b/src/components/index.ts
+index 067be0c..c511d13 100644
+--- a/src/components/index.ts
++++ b/src/components/index.ts
+@@ -1,4 +1,5 @@
+ export { default as CalendarGrid } from './CalendarGrid';
++export { default as CompletedTodoCard } from './CompletedTodoCard';
+ export { default as DayPanel } from './DayPanel';
+ export { default as Layout } from './Layout';
+ export { default as Modal } from './Modal';
+diff --git a/src/pages/CalendarPage.tsx b/src/pages/CalendarPage.tsx
+index 742f3f7..492a5d8 100644
+--- a/src/pages/CalendarPage.tsx
++++ b/src/pages/CalendarPage.tsx
+@@ -33,7 +33,8 @@ export default function CalendarPage() {
+     setSelectedDate(null);
+   }
+ 
+-  const panelTodos = selectedDate ? getTodosForDate(todos, selectedDate) : [];
++  const activeTodos = todos.filter((t) => !t.completed);
++  const panelTodos = selectedDate ? getTodosForDate(activeTodos, selectedDate) : [];
+ 
+   return (
+     <main data-testid="page-calendar" className="p-6 flex flex-col">
+@@ -72,7 +73,7 @@ export default function CalendarPage() {
+           <CalendarGrid
+             year={year}
+             month={month}
+-            todos={todos}
++            todos={activeTodos}
+             selectedDate={selectedDate}
+             onDayClick={handleDayClick}
+           />
+diff --git a/src/pages/CompletedPage.tsx b/src/pages/CompletedPage.tsx
+index 82a0009..3bf3f42 100644
+--- a/src/pages/CompletedPage.tsx
++++ b/src/pages/CompletedPage.tsx
+@@ -1,7 +1,75 @@
++import { useState } from 'react';
++import { useTodos } from '../context';
++import type { Category } from '../types';
++import CompletedTodoCard from '../components/CompletedTodoCard';
++
++type FilterValue = 'all' | Category;
++
++const FILTERS: { label: string; value: FilterValue; testId: string }[] = [
++  { label: 'All', value: 'all', testId: 'completed-filter-all' },
++  { label: 'Office', value: 'office', testId: 'completed-filter-office' },
++  { label: 'Personal', value: 'personal', testId: 'completed-filter-personal' },
++  { label: 'Family', value: 'family', testId: 'completed-filter-family' },
++];
++
+ export default function CompletedPage() {
++  const { todos, toggleComplete, deleteTodo } = useTodos();
++  const [filter, setFilter] = useState<FilterValue>('all');
++
++  const completedTodos = todos
++    .filter((t) => t.completed)
++    .sort((a, b) => {
++      const aDate = a.completedAt ?? '';
++      const bDate = b.completedAt ?? '';
++      return bDate.localeCompare(aDate);
++    });
++
++  const filtered =
++    filter === 'all' ? completedTodos : completedTodos.filter((t) => t.category === filter);
++
+   return (
+-    <main data-testid="page-completed" className="p-6">
+-      <h1 className="text-2xl font-bold">Completed</h1>
++    <main data-testid="page-completed" className="p-6 max-w-2xl mx-auto">
++      <div className="mb-6">
++        <h1 className="text-2xl font-bold text-gray-900">Completed</h1>
++        <p className="text-sm text-gray-500 mt-0.5">{completedTodos.length} completed todo{completedTodos.length !== 1 ? 's' : ''}</p>
++      </div>
++
++      <div className="flex gap-2 mb-6 flex-wrap">
++        {FILTERS.map(({ label, value, testId }) => (
++          <button
++            key={value}
++            data-testid={testId}
++            onClick={() => setFilter(value)}
++            className={`px-3 py-1.5 rounded-full text-sm font-medium border transition-colors ${
++              filter === value
++                ? 'bg-blue-600 text-white border-blue-600'
++                : 'text-gray-600 bg-white border-gray-300 hover:bg-gray-50'
++            }`}
++          >
++            {label}
++          </button>
++        ))}
++      </div>
++
++      {filtered.length === 0 ? (
++        <div
++          data-testid="completed-empty-state"
++          className="text-center py-12 text-gray-400"
++        >
++          <p className="text-sm">No completed todos{filter !== 'all' ? ` in ${filter}` : ''} yet.</p>
++        </div>
++      ) : (
++        <div className="flex flex-col gap-3">
++          {filtered.map((todo) => (
++            <CompletedTodoCard
++              key={todo.id}
++              todo={todo}
++              onRestore={toggleComplete}
++              onDelete={deleteTodo}
++            />
++          ))}
++        </div>
++      )}
+     </main>
+-  )
++  );
+ }
+diff --git a/src/pages/DashboardPage.tsx b/src/pages/DashboardPage.tsx
+index 9b8bb6b..7ad7105 100644
+--- a/src/pages/DashboardPage.tsx
++++ b/src/pages/DashboardPage.tsx
+@@ -42,7 +42,8 @@ export default function DashboardPage() {
+   const todayHeading = format(today, 'EEEE, MMMM d, yyyy');
+   const isWeekendDay = isWeekend(today);
+   const modeLabel = isWeekendDay ? 'Weekend Mode' : 'Weekday Mode';
+-  const sortedTodos = sortTodosByPriority(todos, today);
++  const activeTodos = todos.filter((t) => !t.completed);
++  const sortedTodos = sortTodosByPriority(activeTodos, today);
+ 
+   return (
+     <main data-testid="page-dashboard" className="p-6 max-w-2xl mx-auto">
+
+exec
+/bin/bash -lc "sed -n '1,220p' src/components/Layout.tsx && sed -n '1,120p' src/components/index.ts" in /root/development/todo-app
+ succeeded in 0ms:
+import { NavLink, Outlet } from 'react-router-dom'
+import { useTodos } from '../context'
+
+const navLinkClass = ({ isActive }: { isActive: boolean }) =>
+  `px-4 py-2 rounded text-sm font-medium transition-colors ${
+    isActive
+      ? 'bg-blue-600 text-white'
+      : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
+  }`
+
+export default function Layout() {
+  const { todos } = useTodos()
+  const completedCount = todos.filter((t) => t.completed).length
+
+  return (
+    <div className="min-h-screen bg-gray-50">
+      <nav className="bg-white border-b border-gray-200 px-4 py-3 flex gap-2">
+        <NavLink to="/" end data-testid="nav-dashboard" className={navLinkClass}>
+          Dashboard
+        </NavLink>
+        <NavLink to="/calendar" data-testid="nav-calendar" className={navLinkClass}>
+          Calendar
+        </NavLink>
+        <NavLink to="/completed" data-testid="nav-completed" className={navLinkClass}>
+          Completed
+          {completedCount > 0 && (
+            <span className="ml-1.5 inline-flex items-center justify-center px-1.5 py-0.5 rounded-full text-xs font-medium bg-gray-200 text-gray-700">
+              {completedCount}
+            </span>
+          )}
+        </NavLink>
+      </nav>
+      <Outlet />
+    </div>
+  )
+}
+export { default as CalendarGrid } from './CalendarGrid';
+export { default as CompletedTodoCard } from './CompletedTodoCard';
+export { default as DayPanel } from './DayPanel';
+export { default as Layout } from './Layout';
+export { default as Modal } from './Modal';
+export { default as PriorityBadge } from './PriorityBadge';
+export { default as TodoCard } from './TodoCard';
+export { default as TodoForm } from './TodoForm';
+export { default as TodoList } from './TodoList';
+
+exec
+/bin/bash -lc "sed -n '1,260p' src/components/TodoCard.tsx" in /root/development/todo-app
+ succeeded in 0ms:
+import { useState } from 'react';
+import type { Todo } from '../types';
+import PriorityBadge from './PriorityBadge';
+
+interface TodoCardProps {
+  todo: Todo;
+  onEdit: (todo: Todo) => void;
+  onDelete: (id: string) => void;
+  onToggleComplete: (id: string) => void;
+}
+
+const categoryBadgeClass: Record<string, string> = {
+  office: 'bg-blue-100 text-blue-800',
+  personal: 'bg-green-100 text-green-800',
+  family: 'bg-purple-100 text-purple-800',
+};
+
+export default function TodoCard({ todo, onEdit, onDelete, onToggleComplete }: TodoCardProps) {
+  const [showConfirm, setShowConfirm] = useState(false);
+
+  return (
+    <div data-testid="todo-card" className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
+      <div className="flex items-start gap-3">
+        <div className="flex-1 min-w-0">
+          <span data-testid="todo-card-title" className="text-base font-medium text-gray-900 block">
+            {todo.title}
+          </span>
+          <span
+            data-testid="todo-card-category-badge"
+            className={`inline-block mt-1 px-2 py-0.5 rounded-full text-xs font-medium ${
+              categoryBadgeClass[todo.category] ?? 'bg-gray-100 text-gray-800'
+            }`}
+          >
+            {todo.category.charAt(0).toUpperCase() + todo.category.slice(1)}
+          </span>
+          <PriorityBadge category={todo.category} />
+          <div className="mt-2 text-xs text-gray-500 space-y-0.5">
+            <p>Work on: {todo.workOnDate}</p>
+            <p>Due: {todo.dueDate}</p>
+          </div>
+        </div>
+        <div className="flex gap-1 shrink-0">
+          <button
+            data-testid="todo-card-complete-btn"
+            onClick={() => onToggleComplete(todo.id)}
+            className="px-2 py-1 text-xs font-medium text-green-700 bg-green-50 border border-green-200 rounded hover:bg-green-100"
+          >
+            {todo.completed ? 'Undo' : 'Complete'}
+          </button>
+          <button
+            data-testid="todo-card-edit-btn"
+            onClick={() => onEdit(todo)}
+            className="px-2 py-1 text-xs font-medium text-blue-700 bg-blue-50 border border-blue-200 rounded hover:bg-blue-100"
+          >
+            Edit
+          </button>
+          <button
+            data-testid="todo-card-delete-btn"
+            onClick={() => setShowConfirm(true)}
+            className="px-2 py-1 text-xs font-medium text-red-700 bg-red-50 border border-red-200 rounded hover:bg-red-100"
+          >
+            Delete
+          </button>
+        </div>
+      </div>
+
+      {showConfirm && (
+        <div className="mt-3 pt-3 border-t border-gray-100 flex items-center gap-2">
+          <span className="text-sm text-gray-600 flex-1">Delete this todo?</span>
+          <button
+            data-testid="todo-card-delete-cancel"
+            onClick={() => setShowConfirm(false)}
+            className="px-3 py-1 text-xs font-medium text-gray-700 bg-white border border-gray-300 rounded hover:bg-gray-50"
+          >
+            Cancel
+          </button>
+          <button
+            data-testid="todo-card-delete-confirm"
+            onClick={() => onDelete(todo.id)}
+            className="px-3 py-1 text-xs font-medium text-white bg-red-600 rounded hover:bg-red-700"
+          >
+            Delete
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+codex
+The code stays within the allowed source areas and avoids the out-of-scope data layer. One small thing I’m checking before I conclude is whether the recorded verifier output confirms exit code/state and whether there are any hidden TypeScript or convention issues beyond the acceptance tests.
+exec
+/bin/bash -lc "sed -n '1,260p' tasks/task6/artifacts/verify-output.txt" in /root/development/todo-app
+ succeeded in 0ms:
+
+Running 16 tests using 1 worker
+
+  ✓   1 [chromium] › tasks/task6/task6-verify.spec.ts:40:3 › Task 6: Completed Tasks Page › marking complete removes card from dashboard (627ms)
+  ✓   2 [chromium] › tasks/task6/task6-verify.spec.ts:52:3 › Task 6: Completed Tasks Page › completed todo appears on /completed (647ms)
+  ✓   3 [chromium] › tasks/task6/task6-verify.spec.ts:60:3 › Task 6: Completed Tasks Page › completed card title has line-through class (656ms)
+  ✓   4 [chromium] › tasks/task6/task6-verify.spec.ts:69:3 › Task 6: Completed Tasks Page › completed-date label is visible (672ms)
+  ✓   5 [chromium] › tasks/task6/task6-verify.spec.ts:79:3 › Task 6: Completed Tasks Page › restoring a todo removes it from /completed (645ms)
+  ✓   6 [chromium] › tasks/task6/task6-verify.spec.ts:90:3 › Task 6: Completed Tasks Page › restored todo reappears on dashboard as active (953ms)
+  ✓   7 [chromium] › tasks/task6/task6-verify.spec.ts:104:3 › Task 6: Completed Tasks Page › delete button shows inline confirmation (801ms)
+  ✓   8 [chromium] › tasks/task6/task6-verify.spec.ts:113:3 › Task 6: Completed Tasks Page › delete cancel keeps the todo (842ms)
+  ✓   9 [chromium] › tasks/task6/task6-verify.spec.ts:123:3 › Task 6: Completed Tasks Page › confirming delete permanently removes the todo (818ms)
+  ✓  10 [chromium] › tasks/task6/task6-verify.spec.ts:139:3 › Task 6: Completed Tasks Page › filter pills are visible on /completed (409ms)
+  ✓  11 [chromium] › tasks/task6/task6-verify.spec.ts:147:3 › Task 6: Completed Tasks Page › office filter shows only office completed todos (897ms)
+  ✓  12 [chromium] › tasks/task6/task6-verify.spec.ts:161:3 › Task 6: Completed Tasks Page › All filter shows all completed todos (839ms)
+  ✓  13 [chromium] › tasks/task6/task6-verify.spec.ts:174:3 › Task 6: Completed Tasks Page › empty state visible when filtered category has no todos (679ms)
+  ✓  14 [chromium] › tasks/task6/task6-verify.spec.ts:185:3 › Task 6: Completed Tasks Page › completed todos sorted most-recently-completed first (836ms)
+  ✓  15 [chromium] › tasks/task6/task6-verify.spec.ts:203:3 › Task 6: Completed Tasks Page › completed todo shows no dot on calendar (605ms)
+  ✓  16 [chromium] › tasks/task6/task6-verify.spec.ts:215:3 › Task 6: Completed Tasks Page › full flow: add 3 todos, complete 2, verify counts (941ms)
+
+  16 passed (14.9s)
+
+exec
+/bin/bash -lc 'cat tasks/task6/task6-result.json' in /root/development/todo-app
+ succeeded in 0ms:
+{
+  "task": "task6",
+  "status": "complete",
+  "tests": {
+    "total": 16,
+    "passed": 16,
+    "failed": 0
+  },
+  "files_created": [
+    "src/components/CompletedTodoCard.tsx"
+  ],
+  "files_modified": [
+    "src/components/index.ts",
+    "src/pages/CompletedPage.tsx",
+    "src/pages/DashboardPage.tsx",
+    "src/pages/CalendarPage.tsx",
+    "src/components/Layout.tsx"
+  ],
+  "files_unchanged": [
+    "src/components/CalendarGrid.tsx",
+    "src/components/DayPanel.tsx",
+    "src/context/",
+    "src/services/",
+    "src/types/",
+    "src/utils/"
+  ],
+  "acceptance_criteria": {
+    "complete_removes_from_dashboard": true,
+    "completed_todo_appears_on_completed_page": true,
+    "title_has_line_through": true,
+    "completed_date_shown": true,
+    "restore_removes_from_completed": true,
+    "restored_todo_reappears_on_dashboard": true,
+    "delete_btn_shows_inline_confirm": true,
+    "confirm_delete_removes_permanently": true,
+    "filter_all": true,
+    "filter_office": true,
+    "filter_personal": true,
+    "filter_family": true,
+    "empty_state_when_no_todos": true,
+    "sorted_by_completed_at_desc": true,
+    "calendar_no_dot_for_completed": true
+  }
+}
+
+exec
+/bin/bash -lc "sed -n '1,280p' tasks/task6/task6-verify.spec.ts" in /root/development/todo-app
+ succeeded in 0ms:
+import { test, expect } from '@playwright/test';
+import { format } from 'date-fns';
+
+/**
+ * task6-verify.spec.ts
+ * Verifies completed tasks page: complete, archive, restore, delete, filter.
+ */
+
+const todayFormatted = format(new Date(), 'yyyy-MM-dd');
+
+async function resetState(page: import('@playwright/test').Page) {
+  await page.evaluate(() => localStorage.clear());
+  await page.reload();
+  await page.waitForSelector('[data-testid="page-dashboard"]');
+}
+
+async function addTodoViaForm(
+  page: import('@playwright/test').Page,
+  title: string,
+  category: 'office' | 'personal' | 'family' = 'office'
+) {
+  await page.getByTestId('add-todo-btn').click();
+  await page.waitForSelector('[data-testid="todo-form"]');
+  await page.getByTestId('todo-title-input').fill(title);
+  await page.getByTestId(`todo-category-${category}`).click();
+  await page.getByTestId('todo-work-on-date').fill(todayFormatted);
+  await page.getByTestId('todo-due-date').fill(todayFormatted);
+  await page.getByTestId('todo-form-submit').click();
+  await page.waitForSelector('[data-testid="todo-form"]', { state: 'hidden' });
+}
+
+test.describe('Task 6: Completed Tasks Page', () => {
+  test.beforeEach(async ({ page }) => {
+    await page.goto('/');
+    await resetState(page);
+  });
+
+  // ── Complete removes from Dashboard ────────────────────────────────────────
+
+  test('marking complete removes card from dashboard', async ({ page }) => {
+    await addTodoViaForm(page, 'Finish me', 'office');
+    await expect(page.getByTestId('todo-card')).toBeVisible();
+
+    await page.getByTestId('todo-card-complete-btn').click();
+
+    await expect(page.getByTestId('todo-card')).not.toBeVisible();
+    await expect(page.getByTestId('todo-list-empty')).toBeVisible();
+  });
+
+  // ── Completed page ─────────────────────────────────────────────────────────
+
+  test('completed todo appears on /completed', async ({ page }) => {
+    await addTodoViaForm(page, 'Done task', 'personal');
+    await page.getByTestId('todo-card-complete-btn').click();
+
+    await page.goto('/completed');
+    await expect(page.getByTestId('completed-todo-card')).toBeVisible();
+  });
+
+  test('completed card title has line-through class', async ({ page }) => {
+    await addTodoViaForm(page, 'Crossed out', 'office');
+    await page.getByTestId('todo-card-complete-btn').click();
+
+    await page.goto('/completed');
+    const titleEl = page.getByTestId('completed-todo-card').first().locator('[class*="line-through"]');
+    await expect(titleEl).toBeVisible();
+  });
+
+  test('completed-date label is visible', async ({ page }) => {
+    await addTodoViaForm(page, 'Date shown', 'family');
+    await page.getByTestId('todo-card-complete-btn').click();
+
+    await page.goto('/completed');
+    await expect(page.getByTestId('completed-todo-completed-date')).toBeVisible();
+  });
+
+  // ── Restore ────────────────────────────────────────────────────────────────
+
+  test('restoring a todo removes it from /completed', async ({ page }) => {
+    await addTodoViaForm(page, 'Restore me', 'office');
+    await page.getByTestId('todo-card-complete-btn').click();
+
+    await page.goto('/completed');
+    await page.getByTestId('completed-todo-restore-btn').click();
+
+    await expect(page.getByTestId('completed-todo-card')).not.toBeVisible();
+    await expect(page.getByTestId('completed-empty-state')).toBeVisible();
+  });
+
+  test('restored todo reappears on dashboard as active', async ({ page }) => {
+    await addTodoViaForm(page, 'Back to active', 'personal');
+    await page.getByTestId('todo-card-complete-btn').click();
+
+    await page.goto('/completed');
+    await page.getByTestId('completed-todo-restore-btn').click();
+
+    await page.goto('/');
+    await expect(page.getByTestId('todo-card')).toBeVisible();
+    await expect(page.getByTestId('todo-card-title')).toContainText('Back to active');
+  });
+
+  // ── Delete ─────────────────────────────────────────────────────────────────
+
+  test('delete button shows inline confirmation', async ({ page }) => {
+    await addTodoViaForm(page, 'Delete me', 'family');
+    await page.getByTestId('todo-card-complete-btn').click();
+
+    await page.goto('/completed');
+    await page.getByTestId('completed-todo-delete-btn').click();
+    await expect(page.getByTestId('completed-todo-delete-confirm')).toBeVisible();
+  });
+
+  test('delete cancel keeps the todo', async ({ page }) => {
+    await addTodoViaForm(page, 'Stay alive', 'office');
+    await page.getByTestId('todo-card-complete-btn').click();
+
+    await page.goto('/completed');
+    await page.getByTestId('completed-todo-delete-btn').click();
+    await page.getByTestId('completed-todo-delete-cancel').click();
+    await expect(page.getByTestId('completed-todo-card')).toBeVisible();
+  });
+
+  test('confirming delete permanently removes the todo', async ({ page }) => {
+    await addTodoViaForm(page, 'Gone forever', 'personal');
+    await page.getByTestId('todo-card-complete-btn').click();
+
+    await page.goto('/completed');
+    await page.getByTestId('completed-todo-delete-btn').click();
+    await page.getByTestId('completed-todo-delete-confirm').click();
+
+    await expect(page.getByTestId('completed-todo-card')).not.toBeVisible();
+    // Verify localStorage is clean
+    const stored = await page.evaluate(() => JSON.parse(localStorage.getItem('founder_todos') || '[]'));
+    expect(stored).toHaveLength(0);
+  });
+
+  // ── Filter pills ───────────────────────────────────────────────────────────
+
+  test('filter pills are visible on /completed', async ({ page }) => {
+    await page.goto('/completed');
+    await expect(page.getByTestId('completed-filter-all')).toBeVisible();
+    await expect(page.getByTestId('completed-filter-office')).toBeVisible();
+    await expect(page.getByTestId('completed-filter-personal')).toBeVisible();
+    await expect(page.getByTestId('completed-filter-family')).toBeVisible();
+  });
+
+  test('office filter shows only office completed todos', async ({ page }) => {
+    await addTodoViaForm(page, 'Office done', 'office');
+    await page.getByTestId('todo-card-complete-btn').click();
+    await addTodoViaForm(page, 'Family done', 'family');
+    await page.getByTestId('todo-card-complete-btn').click();
+
+    await page.goto('/completed');
+    await page.getByTestId('completed-filter-office').click();
+
+    const cards = page.getByTestId('completed-todo-card');
+    await expect(cards).toHaveCount(1);
+    await expect(cards.first()).toContainText('Office done');
+  });
+
+  test('All filter shows all completed todos', async ({ page }) => {
+    await addTodoViaForm(page, 'Task 1', 'office');
+    await page.getByTestId('todo-card-complete-btn').click();
+    await addTodoViaForm(page, 'Task 2', 'personal');
+    await page.getByTestId('todo-card-complete-btn').click();
+
+    await page.goto('/completed');
+    await page.getByTestId('completed-filter-office').click();
+    await page.getByTestId('completed-filter-all').click();
+
+    await expect(page.getByTestId('completed-todo-card')).toHaveCount(2);
+  });
+
+  test('empty state visible when filtered category has no todos', async ({ page }) => {
+    await addTodoViaForm(page, 'Only office', 'office');
+    await page.getByTestId('todo-card-complete-btn').click();
+
+    await page.goto('/completed');
+    await page.getByTestId('completed-filter-family').click();
+    await expect(page.getByTestId('completed-empty-state')).toBeVisible();
+  });
+
+  // ── Sort order ─────────────────────────────────────────────────────────────
+
+  test('completed todos sorted most-recently-completed first', async ({ page }) => {
+    await addTodoViaForm(page, 'First completed', 'office');
+    await page.getByTestId('todo-card-complete-btn').click();
+    // Brief delay to ensure different completedAt timestamps
+    await page.waitForTimeout(50);
+    await addTodoViaForm(page, 'Second completed', 'personal');
+    await page.getByTestId('todo-card-complete-btn').click();
+
+    await page.goto('/completed');
+    const cards = page.getByTestId('completed-todo-card');
+    await expect(cards).toHaveCount(2);
+    // Most recently completed (Second) appears first
+    await expect(cards.nth(0)).toContainText('Second completed');
+    await expect(cards.nth(1)).toContainText('First completed');
+  });
+
+  // ── Calendar not polluted ───────────────────────────────────────────────────
+
+  test('completed todo shows no dot on calendar', async ({ page }) => {
+    await addTodoViaForm(page, 'No dot for me', 'office');
+    await page.getByTestId('todo-card-complete-btn').click();
+
+    await page.goto('/calendar');
+    await page.waitForSelector('[data-testid="calendar-grid"]');
+    const todayCell = page.getByTestId('calendar-day-today');
+    await expect(todayCell.locator('[data-testid="calendar-day-dot"]')).toHaveCount(0);
+  });
+
+  // ── End-to-end flow ────────────────────────────────────────────────────────
+
+  test('full flow: add 3 todos, complete 2, verify counts', async ({ page }) => {
+    await addTodoViaForm(page, 'Active 1', 'office');
+    await addTodoViaForm(page, 'Complete A', 'personal');
+    await addTodoViaForm(page, 'Complete B', 'family');
+
+    // Complete the last two (they are first in list due to add order)
+    const cards = page.getByTestId('todo-card');
+    await cards.nth(0).getByTestId('todo-card-complete-btn').click();
+    await cards.nth(0).getByTestId('todo-card-complete-btn').click();
+
+    // Dashboard: 1 active
+    await expect(page.getByTestId('todo-card')).toHaveCount(1);
+
+    // Completed: 2
+    await page.goto('/completed');
+    await expect(page.getByTestId('completed-todo-card')).toHaveCount(2);
+  });
+});
+
+exec
+/bin/bash -lc "rg -n \"any|style=|waitForTimeout|confirm\\(\" src tests tasks/task6/task6-verify.spec.ts" in /root/development/todo-app
+ succeeded in 0ms:
+tests/task1-verify.spec.ts:9: * - Never use waitForTimeout
+tasks/task6/task6-verify.spec.ts:189:    await page.waitForTimeout(50);
+
+codex
+The implementation passes the recorded verifier and I do not see a blocking issue in the task code. I’m going to write concise review artifacts with `passed_review: true`, `verify_exit_code: 0`, and `next_action: pass`.
+2026-05-21T07:39:52.505186Z ERROR codex_core::tools::router: error=patch rejected: writing is blocked by read-only sandbox; rejected by user approval settings
+codex
+I reviewed the implementation and the recorded verifier output. The code passes review, but this session’s filesystem is read-only, so I could not create the requested files.
+
+Use these exact contents:
+
+`tasks/task6/task6-review-feedback.md`
+```md
+# Task 6 Review Feedback
+
+Passed review.
+
+The implementation satisfies the Task 6 acceptance criteria: completed todos are removed from Dashboard and Calendar active views, shown on `/completed`, can be restored or permanently deleted, and can be filtered by category. Completed todos are sorted by `completedAt` descending, the completed title uses the required `line-through` styling, and delete uses an inline confirmation instead of `window.confirm()`.
+
+The recorded verify run passed all 16 Playwright checks with exit code 0.
+
+No blocking issues found.
+```
+
+`tasks/task6/task6-review-feedback.json`
+```json
+{
+  "task_id": "task6",
+  "iteration": 1,
+  "passed_review": true,
+  "verify_exit_code": 0,
+  "furthest_iteration": 1,
+  "blocking_issues": [],
+  "non_blocking_notes": [],
+  "next_action": "pass"
+}
+```
+tokens used
+38,850
+I reviewed the implementation and the recorded verifier output. The code passes review, but this session’s filesystem is read-only, so I could not create the requested files.
+
+Use these exact contents:
+
+`tasks/task6/task6-review-feedback.md`
+```md
+# Task 6 Review Feedback
+
+Passed review.
+
+The implementation satisfies the Task 6 acceptance criteria: completed todos are removed from Dashboard and Calendar active views, shown on `/completed`, can be restored or permanently deleted, and can be filtered by category. Completed todos are sorted by `completedAt` descending, the completed title uses the required `line-through` styling, and delete uses an inline confirmation instead of `window.confirm()`.
+
+The recorded verify run passed all 16 Playwright checks with exit code 0.
+
+No blocking issues found.
+```
+
+`tasks/task6/task6-review-feedback.json`
+```json
+{
+  "task_id": "task6",
+  "iteration": 1,
+  "passed_review": true,
+  "verify_exit_code": 0,
+  "furthest_iteration": 1,
+  "blocking_issues": [],
+  "non_blocking_notes": [],
+  "next_action": "pass"
+}
+```
