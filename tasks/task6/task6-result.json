@@ -1,0 +1,44 @@
+{
+  "task": "task6",
+  "status": "complete",
+  "tests": {
+    "total": 16,
+    "passed": 16,
+    "failed": 0
+  },
+  "files_created": [
+    "src/components/CompletedTodoCard.tsx"
+  ],
+  "files_modified": [
+    "src/components/index.ts",
+    "src/pages/CompletedPage.tsx",
+    "src/pages/DashboardPage.tsx",
+    "src/pages/CalendarPage.tsx",
+    "src/components/Layout.tsx"
+  ],
+  "files_unchanged": [
+    "src/components/CalendarGrid.tsx",
+    "src/components/DayPanel.tsx",
+    "src/context/",
+    "src/services/",
+    "src/types/",
+    "src/utils/"
+  ],
+  "acceptance_criteria": {
+    "complete_removes_from_dashboard": true,
+    "completed_todo_appears_on_completed_page": true,
+    "title_has_line_through": true,
+    "completed_date_shown": true,
+    "restore_removes_from_completed": true,
+    "restored_todo_reappears_on_dashboard": true,
+    "delete_btn_shows_inline_confirm": true,
+    "confirm_delete_removes_permanently": true,
+    "filter_all": true,
+    "filter_office": true,
+    "filter_personal": true,
+    "filter_family": true,
+    "empty_state_when_no_todos": true,
+    "sorted_by_completed_at_desc": true,
+    "calendar_no_dot_for_completed": true
+  }
+}
