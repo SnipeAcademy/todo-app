@@ -3,18 +3,20 @@ import { format, isWeekend } from 'date-fns';
 import { useTodos } from '../context';
 import type { Todo } from '../types';
 import Modal from '../components/Modal';
+import SearchBar from '../components/SearchBar';
 import TodoForm from '../components/TodoForm';
 import TodoList from '../components/TodoList';
 import { sortTodosByPriority, isOverdue } from '../utils';
 
 type AddTodoInput = Omit<Todo, 'id' | 'completed' | 'completedAt' | 'createdAt' | 'updatedAt'>;
-type FilterType = 'all' | 'overdue';
+type FilterType = 'all' | 'overdue' | 'office' | 'personal' | 'family';
 
 export default function DashboardPage() {
   const { todos, addTodo, updateTodo, deleteTodo, toggleComplete } = useTodos();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingTodo, setEditingTodo] = useState<Todo | null>(null);
   const [activeFilter, setActiveFilter] = useState<FilterType>('all');
+  const [searchQuery, setSearchQuery] = useState('');
 
   function handleOpenAdd() {
     setEditingTodo(null);
@@ -46,7 +48,15 @@ export default function DashboardPage() {
   const modeLabel = isWeekendDay ? 'Weekend Mode' : 'Weekday Mode';
   const activeTodos = todos.filter(t => !t.completed);
   const sortedTodos = sortTodosByPriority(activeTodos, today);
-  const filteredTodos = activeFilter === 'overdue' ? sortedTodos.filter(isOverdue) : sortedTodos;
+  const filterByCategory =
+    activeFilter === 'overdue'
+      ? sortedTodos.filter(isOverdue)
+      : activeFilter === 'all'
+        ? sortedTodos
+        : sortedTodos.filter(t => t.category === activeFilter);
+  const filteredTodos = searchQuery
+    ? filterByCategory.filter(t => t.title.toLowerCase().includes(searchQuery.toLowerCase()))
+    : filterByCategory;
 
   return (
     <main data-testid="page-dashboard" className="p-6 max-w-2xl mx-auto">
@@ -75,6 +85,10 @@ export default function DashboardPage() {
         {modeLabel}
       </div>
 
+      <div className="mb-3">
+        <SearchBar value={searchQuery} onChange={setSearchQuery} />
+      </div>
+
       <div className="flex gap-2 mb-4">
         <button
           data-testid="filter-all"
@@ -97,6 +111,39 @@ export default function DashboardPage() {
           }`}
         >
           Overdue
+        </button>
+        <button
+          data-testid="filter-office"
+          onClick={() => setActiveFilter('office')}
+          className={`px-3 py-1 rounded-full text-sm font-medium border transition-colors ${
+            activeFilter === 'office'
+              ? 'bg-blue-600 text-white border-blue-600'
+              : 'bg-white text-gray-600 border-gray-300 hover:border-gray-400'
+          }`}
+        >
+          Office
+        </button>
+        <button
+          data-testid="filter-personal"
+          onClick={() => setActiveFilter('personal')}
+          className={`px-3 py-1 rounded-full text-sm font-medium border transition-colors ${
+            activeFilter === 'personal'
+              ? 'bg-green-600 text-white border-green-600'
+              : 'bg-white text-gray-600 border-gray-300 hover:border-gray-400'
+          }`}
+        >
+          Personal
+        </button>
+        <button
+          data-testid="filter-family"
+          onClick={() => setActiveFilter('family')}
+          className={`px-3 py-1 rounded-full text-sm font-medium border transition-colors ${
+            activeFilter === 'family'
+              ? 'bg-purple-600 text-white border-purple-600'
+              : 'bg-white text-gray-600 border-gray-300 hover:border-gray-400'
+          }`}
+        >
+          Family
         </button>
       </div>
 
