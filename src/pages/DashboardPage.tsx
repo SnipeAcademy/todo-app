@@ -5,14 +5,16 @@ import type { Todo } from '../types';
 import Modal from '../components/Modal';
 import TodoForm from '../components/TodoForm';
 import TodoList from '../components/TodoList';
-import { sortTodosByPriority } from '../utils';
+import { sortTodosByPriority, isOverdue } from '../utils';
 
 type AddTodoInput = Omit<Todo, 'id' | 'completed' | 'completedAt' | 'createdAt' | 'updatedAt'>;
+type FilterType = 'all' | 'overdue';
 
 export default function DashboardPage() {
   const { todos, addTodo, updateTodo, deleteTodo, toggleComplete } = useTodos();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingTodo, setEditingTodo] = useState<Todo | null>(null);
+  const [activeFilter, setActiveFilter] = useState<FilterType>('all');
 
   function handleOpenAdd() {
     setEditingTodo(null);
@@ -42,7 +44,9 @@ export default function DashboardPage() {
   const todayHeading = format(today, 'EEEE, MMMM d, yyyy');
   const isWeekendDay = isWeekend(today);
   const modeLabel = isWeekendDay ? 'Weekend Mode' : 'Weekday Mode';
-  const sortedTodos = sortTodosByPriority(todos, today);
+  const activeTodos = todos.filter(t => !t.completed);
+  const sortedTodos = sortTodosByPriority(activeTodos, today);
+  const filteredTodos = activeFilter === 'overdue' ? sortedTodos.filter(isOverdue) : sortedTodos;
 
   return (
     <main data-testid="page-dashboard" className="p-6 max-w-2xl mx-auto">
@@ -71,8 +75,33 @@ export default function DashboardPage() {
         {modeLabel}
       </div>
 
+      <div className="flex gap-2 mb-4">
+        <button
+          data-testid="filter-all"
+          onClick={() => setActiveFilter('all')}
+          className={`px-3 py-1 rounded-full text-sm font-medium border transition-colors ${
+            activeFilter === 'all'
+              ? 'bg-gray-800 text-white border-gray-800'
+              : 'bg-white text-gray-600 border-gray-300 hover:border-gray-400'
+          }`}
+        >
+          All
+        </button>
+        <button
+          data-testid="filter-overdue"
+          onClick={() => setActiveFilter('overdue')}
+          className={`px-3 py-1 rounded-full text-sm font-medium border transition-colors ${
+            activeFilter === 'overdue'
+              ? 'bg-red-600 text-white border-red-600'
+              : 'bg-white text-gray-600 border-gray-300 hover:border-gray-400'
+          }`}
+        >
+          Overdue
+        </button>
+      </div>
+
       <TodoList
-        todos={sortedTodos}
+        todos={filteredTodos}
         onEdit={handleOpenEdit}
         onDelete={deleteTodo}
         onToggleComplete={toggleComplete}

@@ -1,0 +1,69 @@
+{
+  "task_id": "task8",
+  "title": "Dashboard Search Bar",
+  "project_type": "browser_app",
+  "verify_command": "npx playwright test tasks/task8/task8-verify.spec.ts --reporter=list",
+  "setup_command": "npm install && npx playwright install --with-deps chromium --quiet 2>/dev/null || true",
+  "dev_command": "npm run dev",
+  "required_env_vars": [],
+  "max_iterations": 3,
+  "allowed_paths": [
+    "src/components/SearchBar.tsx",
+    "src/components/index.ts",
+    "src/pages/DashboardPage.tsx"
+  ],
+  "protected_paths": [
+    "tasks/task8/task8.md",
+    "tasks/task8/task8-verify.spec.ts",
+    "tasks/task8/task8.manifest.json",
+    "CONVENTIONS.md"
+  ],
+  "depends_on": ["task7"],
+  "artifact_dir": "tasks/task8/artifacts",
+  "claude_code_command": {
+    "loop_1": "git checkout main && git pull origin main && git checkout -b task8-impl && cat CONVENTIONS.md tasks/task8/task8.md | claude -p 'Read the task spec and CONVENTIONS.md above. Step 1: write tasks/task8/task8-assumptions.md listing every assumption before touching any file. Step 2: implement every file in allowed_paths. Step 3: write tasks/task8/task8-result.md (human-readable) and tasks/task8/task8-result.json (machine-readable) using the result schema in the pipeline spec.' --allowedTools 'Edit,Write,Bash,Read,Glob,Grep' --output-format text 2>&1 | tee tasks/task8/artifacts/logs/loop-1.txt",
+    "loop_n": "cat CONVENTIONS.md tasks/task8/task8.md tasks/task8/task8-assumptions.md tasks/task8/task8-result.md tasks/task8/task8-review-feedback.md | claude -p 'Read all context above including the review feedback. Fix every item in blocking_issues. Update tasks/task8/task8-result.md and tasks/task8/task8-result.json.' --allowedTools 'Edit,Write,Bash,Read,Glob,Grep' --output-format text 2>&1 | tee tasks/task8/artifacts/logs/loop-{ITERATION}.txt"
+  },
+  "codex_review_command": "cat CONVENTIONS.md tasks/task8/task8.md tasks/task8/task8-result.md tasks/task8/artifacts/verify-output.txt | codex exec 'You are Codex reviewing a task implementation. Read the task spec (task8.md), what was built (task8-result.md), and the verify runner output above. Output tasks/task8/task8-review-feedback.md (human-readable notes) and tasks/task8/task8-review-feedback.json (machine-readable, strict schema). The json must contain: task_id, iteration, passed_review (bool), verify_exit_code (int), furthest_iteration (int), blocking_issues (array), non_blocking_notes (array), next_action (pass|retry|terminate).' 2>&1 | tee tasks/task8/artifacts/logs/codex-{ITERATION}.txt",
+  "pipeline_steps": [
+    {
+      "step": 1,
+      "id": "implement",
+      "run_agent": "claude_code",
+      "command_ref": "claude_code_command",
+      "done_when": { "file_exists": "tasks/task8/task8-result.json", "json_field": "status", "equals": "implemented" },
+      "on_done_when_fail": "FAIL_ITERATION",
+      "next": "verify"
+    },
+    {
+      "step": 2,
+      "id": "verify",
+      "run_agent": "hermes",
+      "command_ref": "verify_command",
+      "capture_stdout_to": "tasks/task8/artifacts/verify-output.txt",
+      "done_when": { "type": "command_exited" },
+      "next": "review"
+    },
+    {
+      "step": 3,
+      "id": "review",
+      "run_agent": "codex",
+      "command_ref": "codex_review_command",
+      "done_when": { "file_exists": "tasks/task8/task8-review-feedback.json", "json_field": "next_action" },
+      "on_done_when_fail": "FAIL_ITERATION",
+      "next": "decide"
+    },
+    {
+      "step": 4,
+      "id": "decide",
+      "run_agent": "hermes",
+      "action": "read_json_and_route",
+      "read_file": "tasks/task8/task8-review-feedback.json",
+      "routes": {
+        "next_action=pass AND verify_exit_code=0": "CREATE_PR",
+        "next_action=retry AND iteration<max_iterations": "INCREMENT_ITERATION_GOTO_STEP_1",
+        "default": "WRITE_REDESIGN_NEEDED_AND_STOP"
+      }
+    }
+  ]
+}

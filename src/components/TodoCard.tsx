@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import type { Todo } from '../types';
 import PriorityBadge from './PriorityBadge';
+import { isOverdue } from '../utils';
 
 interface TodoCardProps {
   todo: Todo;
@@ -17,9 +18,15 @@ const categoryBadgeClass: Record<string, string> = {
 
 export default function TodoCard({ todo, onEdit, onDelete, onToggleComplete }: TodoCardProps) {
   const [showConfirm, setShowConfirm] = useState(false);
+  const overdue = isOverdue(todo);
 
   return (
-    <div data-testid="todo-card" className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
+    <div
+      data-testid="todo-card"
+      className={`bg-white border rounded-lg p-4 shadow-sm ${
+        overdue ? 'border-red-400 ring-2 ring-red-400' : 'border-gray-200'
+      }`}
+    >
       <div className="flex items-start gap-3">
         <div className="flex-1 min-w-0">
           <span data-testid="todo-card-title" className="text-base font-medium text-gray-900 block">
@@ -33,6 +40,14 @@ export default function TodoCard({ todo, onEdit, onDelete, onToggleComplete }: T
           >
             {todo.category.charAt(0).toUpperCase() + todo.category.slice(1)}
           </span>
+          {overdue && (
+            <span
+              data-testid="todo-card-overdue-badge"
+              className="inline-block mt-1 ml-1 px-2 py-0.5 rounded-full text-xs font-medium bg-red-100 text-red-700"
+            >
+              Overdue
+            </span>
+          )}
           <PriorityBadge category={todo.category} />
           <div className="mt-2 text-xs text-gray-500 space-y-0.5">
             <p>Work on: {todo.workOnDate}</p>
